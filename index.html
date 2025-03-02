@@ -24,33 +24,37 @@
             margin-bottom: 30px;
             text-align: center;
         }
-        /* 重要: 風データとロゴを重ねるためのコンテナスタイル */
-        .overlay-container {
+        /* ロゴコンテナのスタイル */
+        .logo-container {
             width: 100%;
             max-width: 600px;
-            margin: 0 auto 30px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        /* ロゴ画像のスタイル */
+        #logoImage {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        /* 風データコンテナのスタイル - 横幅はロゴと同じ、縦横比2:1 */
+        .wind-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto 30px;
             position: relative;
-            /* 縦横比を2:1に固定するための設定 */
+            /* 縦横比を2:1に固定 */
             aspect-ratio: 2 / 1;
         }
-        /* 風データキャンバスのスタイル - 下層に配置 */
+        /* 風データキャンバスのスタイル */
         #windCanvas {
             width: 100%;
             height: 100%;
             display: block;
-            position: relative;
-            z-index: 1;
             background-color: #f0f0f0;
-        }
-        /* ロゴ画像のスタイル - 絶対位置決めでデータの上に重ねる */
-        #logoImage {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 2;
-            object-fit: contain; /* ロゴを縦横比を維持しながら表示 */
+            border: 1px solid #ddd;
         }
         .controls {
             margin: 20px auto;
@@ -126,13 +130,14 @@
             <p>プロキシAPI: <span id="apiStatus">未接続</span></p>
         </div>
         
-        <!-- 風データとロゴを重ねるコンテナ - 縦横比2:1に固定 -->
-        <div class="overlay-container">
-            <!-- 風データキャンバス - 下層に配置 -->
-            <canvas id="windCanvas"></canvas>
-            
-            <!-- ロゴ画像 - 上層に配置 -->
+        <!-- ロゴ画像 -->
+        <div class="logo-container">
             <img src="fuha-logo.png" alt="Fuhaロゴ" id="logoImage">
+        </div>
+        
+        <!-- 風データコンテナ - 縦横比2:1に固定 -->
+        <div class="wind-container">
+            <canvas id="windCanvas"></canvas>
         </div>
     
         <div class="controls">
