@@ -89,45 +89,30 @@
 <body>
     <div class="container">
         <h1>日本の風データビジュアライゼーション</h1>
-        
-        <div class="api-key-info">
-            <h5>APIキーについて</h5>
-            <p>このアプリケーションは、OpenWeatherMap APIを使用して風データを取得します。使用するにはAPIキーが必要です。</p>
-            <ol>
-                <li><a href="https://home.openweathermap.org/users/sign_up" target="_blank">OpenWeatherMap</a>に登録（無料）</li>
-                <li>登録後、My APIKeysページからキーをコピー</li>
-                <li>下のフォームにキーを貼り付け</li>
-            </ol>
-            <p class="text-muted">※APIキーは無料プランでも取得でき、1分間に60回までリクエスト可能です。</p>
+    
+<div class="controls">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label for="contrastInput" class="form-label">コントラスト</label>
+            <input type="range" class="form-range" id="contrastInput" min="1" max="3" step="0.1" value="1.8">
+            <div class="text-center"><span id="contrastValue">1.8</span></div>
         </div>
-        
-        <div class="controls">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label for="apiKey" class="form-label">OpenWeatherMap APIキー (必須)</label>
-                    <input type="text" class="form-control" id="apiKey" placeholder="APIキーを入力">
-                </div>
-                <div class="col-md-3">
-                    <label for="contrastInput" class="form-label">コントラスト</label>
-                    <input type="range" class="form-range" id="contrastInput" min="1" max="3" step="0.1" value="1.8">
-                    <div class="text-center"><span id="contrastValue">1.8</span></div>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">オプション</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="showArrows">
-                        <label class="form-check-label" for="showArrows">風向き矢印を表示</label>
-                    </div>
-                </div>
+        <div class="col-md-6">
+            <label class="form-label">オプション</label>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="showArrows">
+                <label class="form-check-label" for="showArrows">風向き矢印を表示</label>
             </div>
-            <div class="row mt-3">
-                <div class="col-12 text-center">
-                    <button id="generateBtn" class="btn btn-primary">風データを取得して視覚化</button>
-                    <button id="downloadBtn" class="btn btn-success ms-2" disabled>画像をダウンロード</button>
-                </div>
-            </div>
-            <div id="errorMessage" class="text-center" style="display: none;"></div>
         </div>
+    </div>
+    <div class="row mt-3">
+        <div class="col-12 text-center">
+            <button id="generateBtn" class="btn btn-primary">風データを取得して視覚化</button>
+            <button id="downloadBtn" class="btn btn-success ms-2" disabled>画像をダウンロード</button>
+        </div>
+    </div>
+    <div id="errorMessage" class="text-center" style="display: none;"></div>
+</div>
         
         <div id="loadingIndicator" class="loading" style="display: none;">
             <div class="spinner-border text-primary" role="status">
