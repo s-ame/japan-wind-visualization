@@ -120,8 +120,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadBtn = document.getElementById('downloadBtn');
     const windCanvas = document.getElementById('windCanvas');
     const logoCanvas = document.getElementById('logoCanvas');
+    
+    // キャンバスのコンテキストを取得
     const windCtx = windCanvas.getContext('2d');
     const logoCtx = logoCanvas.getContext('2d');
+    
     const loadingIndicator = document.getElementById('loadingIndicator');
     const canvasContainer = document.getElementById('canvasContainer');
     const dataContainer = document.getElementById('dataContainer');
@@ -133,6 +136,23 @@ document.addEventListener('DOMContentLoaded', function() {
     contrastInput.addEventListener('input', function() {
         contrastValue.textContent = this.value;
     });
+    
+    // 初期ロゴを描画
+    function initializeLogoCanvas() {
+        defineFuhaLogoPath(logoCtx, logoCanvas.width, logoCanvas.height);
+        logoCtx.fillStyle = '#009E4F';  // Fuhaロゴの緑色
+        logoCtx.fill();
+        drawLogoLines(logoCtx, logoCanvas.width, logoCanvas.height);
+    }
+    
+    // 初期テキストの表示
+    function initializeWindCanvas() {
+        windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
+        windCtx.font = '20px Arial';
+        windCtx.fillStyle = '#666';
+        windCtx.textAlign = 'center';
+        windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', windCanvas.width/2, windCanvas.height/2);
+    }
     
     // 画像生成ボタンの処理
     generateBtn.addEventListener('click', async function() {
@@ -197,9 +217,6 @@ document.addEventListener('DOMContentLoaded', function() {
         logoCtx.fillStyle = '#009E4F';  // Fuhaロゴの緑色
         logoCtx.fill();
         
-        // 風データキャンバスから画像データを取得
-        const windImageData = windDataCtx.getImageData(0, 0, windDataCanvas.width, windDataCanvas.height);
-        
         // クリッピングパスを設定（ロゴの形状内だけに描画）
         logoCtx.save();
         logoCtx.beginPath();
@@ -221,20 +238,26 @@ document.addEventListener('DOMContentLoaded', function() {
         logoCtx.drawImage(tempCanvas, 0, 0);
         logoCtx.globalAlpha = 1.0;
         
-        // ロゴの白い曲線を描画
-        drawLogoLines(logoCtx, logoCanvas.width, logoCanvas.height);
-        
         // クリッピングを解除
         logoCtx.restore();
+        
+        // ロゴの白い曲線を描画
+        drawLogoLines(logoCtx, logoCanvas.width, logoCanvas.height);
     }
     
     // プロキシサーバーから風データを取得する関数
     async function fetchWindData() {
-        const response = await fetch(PROXY_API_URL);
-        if (!response.ok) {
-            throw new Error(`データの取得に失敗しました（ステータス: ${response.status}）`);
+        // プロキシAPIが利用できない場合、ダミーデータを返す
+        try {
+            const response = await fetch(PROXY_API_URL);
+            if (!response.ok) {
+                throw new Error(`データの取得に失敗しました（ステータス: ${response.status}）`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.warn('APIからのデータ取得に失敗しました:', error);
+            return generateMockWindData();
         }
-        return response.json();
     }
     
     // 風データをテーブルに表示
@@ -430,15 +453,8 @@ document.addEventListener('DOMContentLoaded', function() {
         link.click();
         document.body.removeChild(link);
     });
-
-    // 初期ロゴ表示
-    defineFuhaLogoPath(logoCtx, logoCanvas.width, logoCanvas.height);
-    logoCtx.fillStyle = '#009E4F';  // Fuhaロゴの緑色
-    logoCtx.fill();
-    drawLogoLines(logoCtx, logoCanvas.width, logoCanvas.height);
     
-    // 初期テキスト表示
-    windCtx.font = '20px Arial';
-    windCtx.fillStyle = '#666';
-    windCtx.textAlign = 'center';
-    windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', windCanvas.width/2, windCanvas.height/2);
+    // 初期化
+    initializeLogoCanvas();
+    initializeWindCanvas();
+});
