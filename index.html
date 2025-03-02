@@ -24,33 +24,32 @@
             margin-bottom: 30px;
             text-align: center;
         }
-        .logo-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto 20px;
-            text-align: center;
-        }
-        #logoImage {
-            width: 100%;
-            max-width: 600px;
-            height: auto;
-            display: block;
-            margin: 0 auto;
-        }
-        .wind-container {
+        /* 重要: ロゴと風データを重ねるためのコンテナスタイル */
+        .overlay-container {
             width: 100%;
             max-width: 600px;
             margin: 0 auto 30px;
             position: relative;
         }
-        #windCanvas {
+        /* ロゴ画像のスタイル */
+        #logoImage {
             width: 100%;
+            max-width: 600px;
             height: auto;
             display: block;
-            margin: 0 auto;
-            border-radius: 5px;
-            background-color: #f0f0f0;
-            border: 1px solid #ddd;
+            position: relative;
+            z-index: 1;
+        }
+        /* 風データキャンバスのスタイル - 絶対位置決めでロゴと重ねる */
+        #windCanvas {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            background-color: transparent;
         }
         .controls {
             margin: 20px auto;
@@ -121,19 +120,18 @@
         <!-- エラーメッセージ -->
         <div id="errorMessage" class="text-center"></div>
         
-        <!-- Fuhaロゴ画像 -->
-        <div class="logo-container">
-            <img src="fuha-logo.png" alt="Fuhaロゴ" id="logoImage">
-        </div>
-        
         <!-- API接続ステータス -->
         <div class="api-status">
             <p>プロキシAPI: <span id="apiStatus">未接続</span></p>
         </div>
         
-        <!-- 風データビジュアライゼーション -->
-        <div class="wind-container">
-            <canvas id="windCanvas" width="600" height="200"></canvas>
+        <!-- ロゴと風データを重ねるコンテナ -->
+        <div class="overlay-container">
+            <!-- ロゴ画像 - 下層に配置 -->
+            <img src="fuha-logo.png" alt="Fuhaロゴ" id="logoImage">
+            
+            <!-- 風データキャンバス - 上層に配置 -->
+            <canvas id="windCanvas"></canvas>
         </div>
     
         <div class="controls">
