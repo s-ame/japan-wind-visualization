@@ -385,4 +385,40 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // 合成画像用のキャンバスを作成
             const combinedCanvas = document.createElement('canvas');
-            combine
+            combinedCanvas.width = logoImage.width;
+            combinedCanvas.height = logoImage.height;
+            
+            const combinedCtx = combinedCanvas.getContext('2d');
+            
+            // ロゴ画像を描画
+            combinedCtx.drawImage(logoImage, 0, 0);
+            
+            // 風データキャンバスを重ねて描画
+            combinedCtx.drawImage(windCanvas, 0, 0);
+            
+            // ダウンロードリンクを作成
+            const link = document.createElement('a');
+            link.href = combinedCanvas.toDataURL('image/png');
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            link.download = `fuha-wind-data-${timestamp}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('画像ダウンロード完了');
+        } catch (error) {
+            console.error('ダウンロードエラー:', error);
+            showError('画像のダウンロード中にエラーが発生しました: ' + error.message);
+        }
+    });
+    
+    // ロゴ画像の読み込みエラー処理
+    logoImage.onerror = function() {
+        showError('ロゴ画像の読み込みに失敗しました。ファイルパスを確認してください。');
+    };
+    
+    // 初期化処理は、ロゴ画像の読み込み完了後（onload内）で行うため、
+    // ここでは特に何もしない
+    console.log('初期化処理を待機中...');
+});
