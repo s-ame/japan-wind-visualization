@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 要素の取得
     const windCanvas = document.getElementById('windCanvas');
     const logoImage = document.getElementById('logoImage');
-    const windContainer = document.querySelector('.wind-container');
+    const overlayContainer = document.querySelector('.overlay-container');
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const contrastInput = document.getElementById('contrastInput');
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // キャンバスのサイズを設定（縦横比2:1）
     function setupCanvas() {
         // コンテナの幅を取得
-        const containerWidth = windContainer.offsetWidth;
+        const containerWidth = overlayContainer.offsetWidth;
         // 縦横比2:1に基づく高さを計算
         const containerHeight = containerWidth / 2;
         
@@ -135,9 +135,10 @@ document.addEventListener('DOMContentLoaded', function() {
         setupCanvas();
     });
     
-    // ロゴ画像の読み込み完了時にキャンバスを設定
+    // ロゴ画像の読み込み完了時にコンテナの高さを調整
     logoImage.onload = function() {
         console.log('ロゴ画像の読み込みが完了しました');
+        // キャンバスのセットアップ
         setupCanvas();
     };
     
@@ -397,19 +398,27 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('ダウンロードボタンがクリックされました');
         
         try {
-            // ダウンロード用のキャンバスを作成
-            const downloadCanvas = document.createElement('canvas');
-            downloadCanvas.width = windCanvas.width;
-            downloadCanvas.height = windCanvas.height;
+            // 合成画像用のキャンバスを作成
+            const combinedCanvas = document.createElement('canvas');
+            combinedCanvas.width = windCanvas.width;
+            combinedCanvas.height = windCanvas.height;
             
-            const downloadCtx = downloadCanvas.getContext('2d');
+            const combinedCtx = combinedCanvas.getContext('2d');
             
-            // 風データキャンバスを描画
-            downloadCtx.drawImage(windCanvas, 0, 0);
+            // 風データキャンバスを下に描画
+            combinedCtx.drawImage(windCanvas, 0, 0);
+            
+            // ロゴ画像を上に重ねて描画
+            // ロゴをキャンバスの幅に合わせつつ縦横比を維持
+            const logoAspectRatio = logoImage.naturalWidth / logoImage.naturalHeight;
+            const logoWidth = combinedCanvas.width;
+            const logoHeight = logoWidth / logoAspectRatio;
+            
+            combinedCtx.drawImage(logoImage, 0, 0, logoWidth, logoHeight);
             
             // ダウンロードリンクを作成
             const link = document.createElement('a');
-            link.href = downloadCanvas.toDataURL('image/png');
+            link.href = combinedCanvas.toDataURL('image/png');
             const now = new Date();
             const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
             link.download = `fuha-wind-data-${timestamp}.png`;
