@@ -1,11 +1,29 @@
-// 簡略化した風データビジュアライゼーションスクリプト
-// 日本の主要都市の位置
+// 風データ生成に関するコンスタント
 const JAPAN_REGIONS = [
-    {city: "Sapporo", lat: 43.06, lon: 141.35},  // 北海道
-    {city: "Tokyo", lat: 35.69, lon: 139.69},    // 東京
-    {city: "Osaka", lat: 34.69, lon: 135.50},    // 大阪
-    {city: "Fukuoka", lat: 33.61, lon: 130.42},  // 福岡
-    {city: "Naha", lat: 26.21, lon: 127.68}      // 沖縄
+    // 北海道・東北
+    {city: "Sapporo", lat: 43.06, lon: 141.35},     // 北海道
+    {city: "Aomori", lat: 40.82, lon: 140.74},      // 青森
+    {city: "Sendai", lat: 38.27, lon: 140.87},      // 宮城
+    // 関東
+    {city: "Tokyo", lat: 35.69, lon: 139.69},       // 東京
+    {city: "Yokohama", lat: 35.44, lon: 139.64},    // 神奈川
+    {city: "Chiba", lat: 35.61, lon: 140.12},       // 千葉
+    // 中部
+    {city: "Niigata", lat: 37.90, lon: 139.02},     // 新潟
+    {city: "Nagoya", lat: 35.18, lon: 136.91},      // 愛知
+    {city: "Kanazawa", lat: 36.59, lon: 136.63},    // 石川
+    // 関西
+    {city: "Osaka", lat: 34.69, lon: 135.50},       // 大阪
+    {city: "Kyoto", lat: 35.02, lon: 135.76},       // 京都
+    {city: "Kobe", lat: 34.69, lon: 135.20},        // 兵庫
+    // 中国・四国
+    {city: "Hiroshima", lat: 34.40, lon: 132.46},   // 広島
+    {city: "Matsuyama", lat: 33.84, lon: 132.77},   // 愛媛
+    {city: "Kochi", lat: 33.56, lon: 133.53},       // 高知
+    // 九州・沖縄
+    {city: "Fukuoka", lat: 33.61, lon: 130.42},     // 福岡
+    {city: "Kagoshima", lat: 31.59, lon: 130.56},   // 鹿児島
+    {city: "Naha", lat: 26.21, lon: 127.68}         // 沖縄
 ];
 
 // 日本の地理的範囲
@@ -14,6 +32,9 @@ const LON_MAX = 146.0;  // 最東端（北海道）
 const LAT_MIN = 24.0;   // 最南端（沖縄）
 const LAT_MAX = 46.0;   // 最北端（北海道）
 
+// プロキシサーバーのURL（実際のNetlifyのURLに置き換えてください）
+const PROXY_API_URL = "https://japan-wind-proxy.netlify.app/api/wind-data";
+
 // 緑色の色定義
 const COLORS = {
     lightGreen: "#E1F5E1",
@@ -21,7 +42,17 @@ const COLORS = {
     darkGreen: "#00773C"
 };
 
-// DOMContentLoaded イベント
+// モックデータを生成する関数（APIが失敗した場合のフォールバック）
+function generateMockWindData() {
+    return JAPAN_REGIONS.map(region => ({
+        city: region.city,
+        lon: region.lon,
+        lat: region.lat,
+        wind_speed: Math.random() * 10 + 1, // 1~11 m/s
+        wind_deg: Math.floor(Math.random() * 360) // 0~359度
+    }));
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM 読み込み完了');
     
@@ -87,15 +118,22 @@ document.addEventListener('DOMContentLoaded', function() {
                          windCanvas.width/2, windCanvas.height/2);
     }
     
-    // モックの風データを生成
-    function generateMockWindData() {
-        return JAPAN_REGIONS.map(region => ({
-            city: region.city,
-            lon: region.lon,
-            lat: region.lat,
-            wind_speed: Math.random() * 10 + 1,  // 1~11 m/s
-            wind_deg: Math.floor(Math.random() * 360)  // 0~359度
-        }));
+    // プロキシサーバーから風データを取得する関数
+    async function fetchWindData() {
+        console.log('プロキシサーバーから風データを取得中...');
+        try {
+            const response = await fetch(PROXY_API_URL);
+            if (!response.ok) {
+                throw new Error(`データの取得に失敗しました（ステータス: ${response.status}）`);
+            }
+            const data = await response.json();
+            console.log('風データ取得成功:', data);
+            return data;
+        } catch (error) {
+            console.warn('APIからのデータ取得に失敗しました:', error);
+            console.log('モックデータを使用します');
+            return generateMockWindData();
+        }
     }
     
     // 風向きから方角を取得する関数
@@ -132,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 風データグラフィックの描画
+    // 風データグラフィックの描画 - 元のアルゴリズムを使用
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
         console.log('風データグラフィック描画開始');
         const ctx = canvas.getContext('2d');
@@ -142,19 +180,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // キャンバスをクリア
         ctx.clearRect(0, 0, width, height);
         
-        // 背景を設定
-        ctx.fillStyle = '#f0f0f0';
-        ctx.fillRect(0, 0, width, height);
-        
-        // 風速の最大値・最小値を取得
+        // 風速の最大値・最小値を取得（正規化用）
         const maxWindSpeed = Math.max(...windData.map(data => data.wind_speed));
         const minWindSpeed = Math.min(...windData.map(data => data.wind_speed));
+        const windSpeedRange = maxWindSpeed - minWindSpeed;
         
         // 各都市の位置と風データを準備
         const cityData = windData.map(data => {
             // 緯度・経度をピクセル座標に変換
             const x = Math.floor((data.lon - LON_MIN) / (LON_MAX - LON_MIN) * width);
             const y = Math.floor((LAT_MAX - data.lat) / (LAT_MAX - LAT_MIN) * height);
+            
+            // 風速を0～1の範囲に正規化
+            const normSpeed = windSpeedRange > 0 ? 
+                (data.wind_speed - minWindSpeed) / windSpeedRange : 0.5;
             
             // 風向きをラジアンに変換
             const windRad = data.wind_deg * Math.PI / 180;
@@ -164,6 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 x: x,
                 y: y,
                 wind_speed: data.wind_speed,
+                norm_speed: normSpeed,
                 wind_deg: data.wind_deg,
                 wind_rad: windRad,
                 wind_x: Math.cos(windRad),
@@ -171,73 +211,120 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         });
         
-        // 各都市を点で表示
-        cityData.forEach(city => {
-            // 風速に応じた色を取得
-            let color;
-            if (city.wind_speed < (minWindSpeed + maxWindSpeed) / 3) {
-                color = COLORS.lightGreen;
-            } else if (city.wind_speed < (minWindSpeed + maxWindSpeed) * 2/3) {
-                color = COLORS.green;
-            } else {
-                color = COLORS.darkGreen;
-            }
-            
-            // 都市の位置に円を描画
-            ctx.beginPath();
-            ctx.arc(city.x, city.y, 5, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-            
-            // 都市名を表示
-            ctx.font = '12px Arial';
-            ctx.fillStyle = '#333';
-            ctx.textAlign = 'center';
-            ctx.fillText(city.city, city.x, city.y - 10);
-            
-            // 風の流れを表現する線を描画
-            const length = 20 + city.wind_speed * 3 * contrastFactor;
-            
-            ctx.beginPath();
-            ctx.moveTo(city.x, city.y);
-            ctx.lineTo(city.x + city.wind_x * length, city.y + city.wind_y * length);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            // 矢印を描画（オプション）
-            if (showArrows) {
-                const arrowLength = length;
-                const endX = city.x + city.wind_x * arrowLength;
-                const endY = city.y + city.wind_y * arrowLength;
+        // イメージデータを作成
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+        
+        // 影響範囲の係数
+        const influenceFactor = Math.max(width, height) / 5;
+        
+        // 各ピクセルの値を計算
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                // 各都市からの影響を計算
+                let totalValue = 0;
+                let totalWeight = 0;
                 
-                const headLength = arrowLength / 4;
+                for (const city of cityData) {
+                    // 都市からの距離を計算
+                    const dx = x - city.x;
+                    const dy = y - city.y;
+                    const distance = Math.sqrt(dx*dx + dy*dy);
+                    
+                    // 距離に基づく重み
+                    let weight;
+                    if (distance < 1) {
+                        weight = 1.0;
+                    } else {
+                        weight = 1.0 / (1 + (distance / influenceFactor)**2);
+                    }
+                    
+                    // 風向きに沿った距離を計算
+                    const flowDistance = dx * city.wind_x + dy * city.wind_y;
+                    
+                    // 基本グラデーション（風速に基づく）
+                    const baseGradient = (city.norm_speed - 0.5) * 2 * 80;
+                    
+                    // 風向きに沿った滑らかなグラデーション
+                    const directionFactor = 0.015;
+                    const directionGradient = Math.tanh(flowDistance * directionFactor) * 50 * city.norm_speed;
+                    
+                    // 効果を組み合わせる
+                    const combinedEffect = baseGradient + directionGradient;
+                    
+                    // 重み付きの値を累積
+                    totalValue += combinedEffect * weight;
+                    totalWeight += weight;
+                }
+                
+                // 重み付き平均
+                let avgEffect = totalWeight > 0 ? totalValue / totalWeight : 0;
+                
+                // コントラスト調整
+                avgEffect *= contrastFactor;
+                
+                // グレースケール値に変換（0～255）
+                let pixelValue = 128 + avgEffect;
+                pixelValue = Math.max(0, Math.min(pixelValue, 255));
+                
+                // イメージデータにセット（RGBA）
+                const offset = (y * width + x) * 4;
+                data[offset] = pixelValue;     // R
+                data[offset + 1] = pixelValue; // G
+                data[offset + 2] = pixelValue; // B
+                data[offset + 3] = 255;        // A (不透明)
+            }
+        }
+        
+        // イメージデータを描画
+        ctx.putImageData(imageData, 0, 0);
+        
+        // 風向きの矢印を追加（オプション）
+        if (showArrows) {
+            for (const city of cityData) {
+                // 風速に比例した矢印の長さ
+                const arrowLength = Math.min(30, Math.max(10, city.wind_speed * 5));
+                
+                // 矢印の先端
+                const endX = city.x + Math.cos(city.wind_rad) * arrowLength;
+                const endY = city.y + Math.sin(city.wind_rad) * arrowLength;
+                
+                // 矢印の軸を描画
+                ctx.beginPath();
+                ctx.moveTo(city.x, city.y);
+                ctx.lineTo(endX, endY);
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // 矢印の頭部を描画
+                const headLength = arrowLength / 3;
                 const headWidth = headLength / 2;
                 
-                const backX = -city.wind_x * headLength;
-                const backY = -city.wind_y * headLength;
+                const backX = -Math.cos(city.wind_rad) * headLength;
+                const backY = -Math.sin(city.wind_rad) * headLength;
                 
-                const leftX = endX + backX - city.wind_y * headWidth;
-                const leftY = endY + backY + city.wind_x * headWidth;
+                const leftX = endX + backX - Math.sin(city.wind_rad) * headWidth;
+                const leftY = endY + backY + Math.cos(city.wind_rad) * headWidth;
                 
-                const rightX = endX + backX + city.wind_y * headWidth;
-                const rightY = endY + backY - city.wind_x * headWidth;
+                const rightX = endX + backX + Math.sin(city.wind_rad) * headWidth;
+                const rightY = endY + backY - Math.cos(city.wind_rad) * headWidth;
                 
                 ctx.beginPath();
                 ctx.moveTo(endX, endY);
                 ctx.lineTo(leftX, leftY);
                 ctx.lineTo(rightX, rightY);
                 ctx.closePath();
-                ctx.fillStyle = color;
+                ctx.fillStyle = 'black';
                 ctx.fill();
             }
-        });
+        }
         
         console.log('風データグラフィック描画完了');
     }
     
     // 風データを取得して視覚化ボタンのクリックイベント
-    generateBtn.addEventListener('click', function() {
+    generateBtn.addEventListener('click', async function() {
         console.log('風データ生成ボタンがクリックされました');
         
         try {
@@ -251,25 +338,21 @@ document.addEventListener('DOMContentLoaded', function() {
             errorMessage.style.display = 'none';
             downloadBtn.disabled = true;
             
-            // モックデータを生成（API接続の代わりに）
-            const windData = generateMockWindData();
-            console.log('モックデータ生成:', windData);
+            // プロキシサーバーから風データを取得
+            const windData = await fetchWindData();
             
-            // 少し遅延を入れてローディング表示を確認できるようにする
-            setTimeout(function() {
-                // データをテーブルに表示
-                displayWindData(windData);
-                
-                // 風データグラフィックを生成
-                drawWindDataGraphic(windCanvas, windData, contrast, showArrows);
-                
-                // ローディングを非表示
-                loadingIndicator.style.display = 'none';
-                dataContainer.style.display = 'block';
-                downloadBtn.disabled = false;
-                
-                console.log('風データ生成完了');
-            }, 1000);
+            // データをテーブルに表示
+            displayWindData(windData);
+            
+            // 風データグラフィックを生成
+            drawWindDataGraphic(windCanvas, windData, contrast, showArrows);
+            
+            // ローディングを非表示
+            loadingIndicator.style.display = 'none';
+            dataContainer.style.display = 'block';
+            downloadBtn.disabled = false;
+            
+            console.log('風データ生成完了');
         } catch (error) {
             console.error('エラー発生:', error);
             loadingIndicator.style.display = 'none';
