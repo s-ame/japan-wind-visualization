@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 要素の取得
     const windCanvas = document.getElementById('windCanvas');
     const logoImage = document.getElementById('logoImage');
+    const overlayContainer = document.querySelector('.overlay-container');
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const contrastInput = document.getElementById('contrastInput');
@@ -91,17 +92,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // ロゴ画像が読み込まれたらキャンバスサイズを設定
-    logoImage.onload = function() {
-        console.log('ロゴ画像の読み込みが完了しました:', logoImage.width, 'x', logoImage.height);
+    // キャンバスのサイズを設定（縦横比2:1）
+    function setupCanvas() {
+        // コンテナの幅を取得
+        const containerWidth = overlayContainer.offsetWidth;
+        // 縦横比2:1に基づく高さを計算
+        const containerHeight = containerWidth / 2;
         
-        // キャンバスサイズをロゴ画像と同じに設定
-        windCanvas.width = logoImage.width;
-        windCanvas.height = logoImage.height;
+        // キャンバスの論理サイズを設定（レンダリング品質のため）
+        windCanvas.width = containerWidth * 2;  // 高解像度用に2倍
+        windCanvas.height = containerHeight * 2;
+        
+        console.log(`キャンバスサイズを設定: ${windCanvas.width}x${windCanvas.height} (縦横比2:1)`);
         
         // 初期キャンバス表示を更新
         initializeWindCanvas();
-    };
+    }
     
     // 初期の風データキャンバス描画
     function initializeWindCanvas() {
@@ -116,12 +122,24 @@ document.addEventListener('DOMContentLoaded', function() {
         windCtx.fillRect(0, 0, windCanvas.width, windCanvas.height);
         
         // 指示テキストを描画
-        windCtx.font = '16px Arial';
+        windCtx.font = '32px Arial'; // 高解像度キャンバス用に大きめフォントを設定
         windCtx.fillStyle = '#333';
         windCtx.textAlign = 'center';
+        windCtx.textBaseline = 'middle';
         windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', 
                          windCanvas.width/2, windCanvas.height/2);
     }
+    
+    // ウィンドウサイズ変更時にキャンバスを再設定
+    window.addEventListener('resize', function() {
+        setupCanvas();
+    });
+    
+    // ページ読み込み完了時にキャンバスを設定
+    logoImage.onload = function() {
+        console.log('ロゴ画像の読み込みが完了しました');
+        setupCanvas();
+    };
     
     // プロキシサーバーから風データを取得する関数
     async function fetchWindData() {
@@ -292,7 +310,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (showArrows) {
             for (const city of cityData) {
                 // 風速に比例した矢印の長さ
-                const arrowLength = Math.min(30, Math.max(10, city.wind_speed * 5));
+                const arrowLength = Math.min(60, Math.max(20, city.wind_speed * 10));
                 
                 // 矢印の先端
                 const endX = city.x + Math.cos(city.wind_rad) * arrowLength;
@@ -303,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.moveTo(city.x, city.y);
                 ctx.lineTo(endX, endY);
                 ctx.strokeStyle = 'black';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.stroke();
                 
                 // 矢印の頭部を描画
@@ -390,8 +408,8 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // 合成画像用のキャンバスを作成
             const combinedCanvas = document.createElement('canvas');
-            combinedCanvas.width = logoImage.width;
-            combinedCanvas.height = logoImage.height;
+            combinedCanvas.width = windCanvas.width;
+            combinedCanvas.height = windCanvas.height;
             
             const combinedCtx = combinedCanvas.getContext('2d');
             
@@ -399,7 +417,25 @@ document.addEventListener('DOMContentLoaded', function() {
             combinedCtx.drawImage(windCanvas, 0, 0);
             
             // ロゴ画像を上に重ねて描画
-            combinedCtx.drawImage(logoImage, 0, 0);
+            // キャンバスと同じサイズにロゴを描画
+            const logoAspectRatio = logoImage.width / logoImage.height;
+            let logoWidth, logoHeight, logoX, logoY;
+            
+            if (logoAspectRatio > 2) {
+                // ロゴが横長の場合
+                logoHeight = combinedCanvas.height;
+                logoWidth = logoHeight * logoAspectRatio;
+                logoX = (combinedCanvas.width - logoWidth) / 2;
+                logoY = 0;
+            } else {
+                // ロゴが縦長または正方形に近い場合
+                logoWidth = combinedCanvas.width;
+                logoHeight = logoWidth / logoAspectRatio;
+                logoX = 0;
+                logoY = (combinedCanvas.height - logoHeight) / 2;
+            }
+            
+            combinedCtx.drawImage(logoImage, logoX, logoY, logoWidth, logoHeight);
             
             // ダウンロードリンクを作成
             const link = document.createElement('a');
@@ -423,7 +459,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showError('ロゴ画像の読み込みに失敗しました。ファイルパスを確認してください。');
     };
     
-    // 初期化処理は、ロゴ画像の読み込み完了後（onload内）で行うため、
-    // ここでは特に何もしない
-    console.log('初期化処理を待機中...');
+    // 初期設定
+    setupCanvas();
+    console.log('初期化完了');
 });
