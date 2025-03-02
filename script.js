@@ -33,12 +33,14 @@ const LON_MAX = 146.0;  // 最東端（北海道）
 const LAT_MIN = 24.0;   // 最南端（沖縄）
 const LAT_MAX = 46.0;   // 最北端（北海道）
 
+// プロキシサーバーのURL（実際のNetlifyのURLに置き換えてください）
+const PROXY_API_URL = " https://japan-wind-proxy.netlify.app/api/wind-data";
+
 document.addEventListener('DOMContentLoaded', function() {
     // 要素の取得
     const contrastInput = document.getElementById('contrastInput');
     const contrastValue = document.getElementById('contrastValue');
     const showArrowsCheckbox = document.getElementById('showArrows');
-    const apiKeyInput = document.getElementById('apiKey');
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const canvas = document.getElementById('windCanvas');
@@ -57,12 +59,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 画像生成ボタンの処理
     generateBtn.addEventListener('click', async function() {
         try {
-            // APIキーの確認（必須）
-            const apiKey = apiKeyInput.value.trim();
-            if (!apiKey) {
-                throw new Error('OpenWeatherMap APIキーを入力してください。上記の手順でAPIキーを取得できます。');
-            }
-            
             // 入力値の取得
             const contrast = parseFloat(contrastInput.value);
             const showArrows = showArrowsCheckbox.checked;
@@ -73,8 +69,8 @@ document.addEventListener('DOMContentLoaded', function() {
             errorMessage.style.display = 'none';
             downloadBtn.disabled = true;
             
-            // 風データの取得
-            const windData = await fetchAllJapanWindData(apiKey);
+            // プロキシサーバーから風データを取得
+            const windData = await fetchWindData();
             
             // データをテーブルに表示
             displayWindData(windData);
@@ -97,44 +93,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // 風データの取得
-    async function fetchAllJapanWindData(apiKey) {
-        const allData = [];
-        const baseUrl = "https://api.openweathermap.org/data/2.5/weather";
-        
-        // すべての都市のデータを並行して取得
-        const promises = JAPAN_REGIONS.map(region => {
-            const url = `${baseUrl}?q=${region.city},JP&appid=${apiKey}&units=metric`;
-            return fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 401) {
-                            throw new Error('APIキーが無効です。正しいAPIキーを入力してください。');
-                        }
-                        throw new Error(`${region.city}の風データ取得に失敗: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    return {
-                        city: region.city,
-                        lat: region.lat,
-                        lon: region.lon,
-                        wind_speed: data.wind?.speed || 0,
-                        wind_deg: data.wind?.deg || 0
-                    };
-                })
-                .catch(error => {
-                    console.error(`Error fetching data for ${region.city}:`, error);
-                    // エラーを上位に伝播
-                    throw error;
-                });
-        });
-        
-        // すべてのリクエストが完了するのを待つ
-        return Promise.all(promises);
+    // プロキシサーバーから風データを取得する関数
+    async function fetchWindData() {
+        const response = await fetch(PROXY_API_URL);
+        if (!response.ok) {
+            throw new Error(`データの取得に失敗しました（ステータス: ${response.status}）`);
+        }
+        return response.json();
     }
     
+    // 以下の関数は以前のコードと同じなので省略...
+    // displayWindData, getWindDirection, drawWindDataGraphic, ダウンロードボタン処理など    
     // 風データをテーブルに表示
     function displayWindData(windData) {
         // テーブルの内容をクリア
