@@ -30,12 +30,13 @@
             max-width: 600px;
             margin: 0 auto 30px;
             position: relative;
+            /* 縦横比を2:1に固定するための設定 */
+            aspect-ratio: 2 / 1;
         }
         /* 風データキャンバスのスタイル - 下層に配置 */
         #windCanvas {
             width: 100%;
-            max-width: 600px;
-            height: auto;
+            height: 100%;
             display: block;
             position: relative;
             z-index: 1;
@@ -44,11 +45,12 @@
         /* ロゴ画像のスタイル - 絶対位置決めでデータの上に重ねる */
         #logoImage {
             width: 100%;
-            max-width: 600px;
+            height: 100%;
             position: absolute;
             top: 0;
             left: 0;
             z-index: 2;
+            object-fit: contain; /* ロゴを縦横比を維持しながら表示 */
         }
         .controls {
             margin: 20px auto;
@@ -124,7 +126,7 @@
             <p>プロキシAPI: <span id="apiStatus">未接続</span></p>
         </div>
         
-        <!-- 風データとロゴを重ねるコンテナ -->
+        <!-- 風データとロゴを重ねるコンテナ - 縦横比2:1に固定 -->
         <div class="overlay-container">
             <!-- 風データキャンバス - 下層に配置 -->
             <canvas id="windCanvas"></canvas>
