@@ -35,70 +35,12 @@ const LAT_MAX = 46.0;   // 最北端（北海道）
 // プロキシサーバーのURL（実際のNetlifyのURLに置き換えてください）
 const PROXY_API_URL = "https://japan-wind-proxy.netlify.app/api/wind-data";
 
-// Fuhaロゴの形状を定義する関数
-function defineFuhaLogoPath(ctx, width, height) {
-    // ロゴのパスを定義
-    ctx.beginPath();
-    // 曲線の近似値 - 実際のロゴに合わせて調整する必要があります
-    ctx.moveTo(0.05 * width, 0.2 * height);
-    ctx.bezierCurveTo(0.1 * width, 0.05 * height, 0.3 * width, 0.05 * height, 0.4 * width, 0.15 * height);
-    ctx.bezierCurveTo(0.5 * width, 0.25 * height, 0.6 * width, 0.1 * height, 0.7 * width, 0.05 * height);
-    ctx.bezierCurveTo(0.8 * width, 0.02 * height, 0.9 * width, 0.1 * height, 0.95 * width, 0.2 * height);
-    ctx.bezierCurveTo(1.0 * width, 0.4 * height, 0.9 * width, 0.6 * height, 0.8 * width, 0.7 * height);
-    ctx.bezierCurveTo(0.7 * width, 0.8 * height, 0.5 * width, 0.8 * height, 0.35 * width, 0.7 * height);
-    ctx.bezierCurveTo(0.2 * width, 0.6 * height, 0.1 * width, 0.7 * height, 0.05 * width, 0.8 * height);
-    ctx.bezierCurveTo(0 * width, 0.6 * height, 0 * width, 0.4 * height, 0.05 * width, 0.2 * height);
-    ctx.closePath();
-    return ctx;
-}
-
-// ロゴの白い曲線を描画する関数
-function drawLogoLines(ctx, width, height) {
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
-    
-    // 曲線1
-    ctx.beginPath();
-    ctx.moveTo(0.05 * width, 0.2 * height);
-    ctx.bezierCurveTo(0.1 * width, 0.05 * height, 0.3 * width, 0.05 * height, 0.4 * width, 0.15 * height);
-    ctx.stroke();
-    
-    // 曲線2
-    ctx.beginPath();
-    ctx.moveTo(0.4 * width, 0.15 * height);
-    ctx.bezierCurveTo(0.5 * width, 0.25 * height, 0.6 * width, 0.1 * height, 0.7 * width, 0.05 * height);
-    ctx.stroke();
-    
-    // 曲線3
-    ctx.beginPath();
-    ctx.moveTo(0.7 * width, 0.05 * height);
-    ctx.bezierCurveTo(0.8 * width, 0.02 * height, 0.9 * width, 0.1 * height, 0.95 * width, 0.2 * height);
-    ctx.stroke();
-    
-    // 曲線4
-    ctx.beginPath();
-    ctx.moveTo(0.1 * width, 0.4 * height);
-    ctx.bezierCurveTo(0.2 * width, 0.3 * height, 0.3 * width, 0.5 * height, 0.5 * width, 0.4 * height);
-    ctx.stroke();
-    
-    // 曲線5
-    ctx.beginPath();
-    ctx.moveTo(0.5 * width, 0.4 * height);
-    ctx.bezierCurveTo(0.6 * width, 0.35 * height, 0.7 * width, 0.5 * height, 0.8 * width, 0.4 * height);
-    ctx.stroke();
-    
-    // 曲線6
-    ctx.beginPath();
-    ctx.moveTo(0.2 * width, 0.6 * height);
-    ctx.bezierCurveTo(0.3 * width, 0.55 * height, 0.4 * width, 0.65 * height, 0.5 * width, 0.6 * height);
-    ctx.stroke();
-    
-    // 曲線7
-    ctx.beginPath();
-    ctx.moveTo(0.6 * width, 0.7 * height);
-    ctx.bezierCurveTo(0.7 * width, 0.65 * height, 0.8 * width, 0.8 * height, 0.9 * width, 0.6 * height);
-    ctx.stroke();
-}
+// 風のデータに関する色の定義
+const WIND_COLORS = {
+    low: "#E1F5E1",     // 弱風（薄い緑）
+    medium: "#009E4F",  // 中風（標準の緑）
+    high: "#00773C"     // 強風（濃い緑）
+};
 
 // モックデータを生成する関数（APIが利用できない場合のテスト用）
 function generateMockWindData() {
@@ -111,7 +53,48 @@ function generateMockWindData() {
     }));
 }
 
+// 風速から色を取得する関数
+function getWindColor(windSpeed, maxSpeed, minSpeed) {
+    // 風速を0〜1の範囲に正規化
+    const normalizedSpeed = maxSpeed === minSpeed ? 
+        0.5 : (windSpeed - minSpeed) / (maxSpeed - minSpeed);
+    
+    // 色の範囲を定義
+    const r1 = parseInt(WIND_COLORS.low.substr(1, 2), 16);
+    const g1 = parseInt(WIND_COLORS.low.substr(3, 2), 16);
+    const b1 = parseInt(WIND_COLORS.low.substr(5, 2), 16);
+    
+    const r2 = parseInt(WIND_COLORS.medium.substr(1, 2), 16);
+    const g2 = parseInt(WIND_COLORS.medium.substr(3, 2), 16);
+    const b2 = parseInt(WIND_COLORS.medium.substr(5, 2), 16);
+    
+    const r3 = parseInt(WIND_COLORS.high.substr(1, 2), 16);
+    const g3 = parseInt(WIND_COLORS.high.substr(3, 2), 16);
+    const b3 = parseInt(WIND_COLORS.high.substr(5, 2), 16);
+    
+    let r, g, b;
+    
+    if (normalizedSpeed < 0.5) {
+        // 薄緑から標準緑へのグラデーション
+        const t = normalizedSpeed * 2; // 0~0.5を0~1にスケール
+        r = Math.round(r1 + (r2 - r1) * t);
+        g = Math.round(g1 + (g2 - g1) * t);
+        b = Math.round(b1 + (b2 - b1) * t);
+    } else {
+        // 標準緑から濃緑へのグラデーション
+        const t = (normalizedSpeed - 0.5) * 2; // 0.5~1を0~1にスケール
+        r = Math.round(r2 + (r3 - r2) * t);
+        g = Math.round(g2 + (g3 - g2) * t);
+        b = Math.round(b2 + (b3 - b2) * t);
+    }
+    
+    // RGB値を16進数形式に変換
+    return `rgb(${r},${g},${b})`;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded');
+    
     // 要素の取得
     const contrastInput = document.getElementById('contrastInput');
     const contrastValue = document.getElementById('contrastValue');
@@ -119,17 +102,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const windCanvas = document.getElementById('windCanvas');
-    const logoCanvas = document.getElementById('logoCanvas');
+    const logoImage = document.getElementById('logoImage');
+    
+    // すべての要素が取得できているか確認
+    if (!windCanvas || !logoImage) {
+        console.error('必要な要素が見つかりません。HTML内のID名を確認してください。');
+        return;
+    }
     
     // キャンバスのコンテキストを取得
     const windCtx = windCanvas.getContext('2d');
-    const logoCtx = logoCanvas.getContext('2d');
     
     const loadingIndicator = document.getElementById('loadingIndicator');
-    const canvasContainer = document.getElementById('canvasContainer');
     const dataContainer = document.getElementById('dataContainer');
     const windDataTable = document.getElementById('windDataTable');
-    const generationTime = document.getElementById('generationTime');
     const errorMessage = document.getElementById('errorMessage');
     
     // コントラスト値の表示を更新
@@ -137,18 +123,11 @@ document.addEventListener('DOMContentLoaded', function() {
         contrastValue.textContent = this.value;
     });
     
-    // 初期ロゴを描画
-    function initializeLogoCanvas() {
-        defineFuhaLogoPath(logoCtx, logoCanvas.width, logoCanvas.height);
-        logoCtx.fillStyle = '#009E4F';  // Fuhaロゴの緑色
-        logoCtx.fill();
-        drawLogoLines(logoCtx, logoCanvas.width, logoCanvas.height);
-    }
-    
     // 初期テキストの表示
     function initializeWindCanvas() {
+        console.log('風データキャンバスの初期化');
         windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
-        windCtx.font = '20px Arial';
+        windCtx.font = '16px Arial';
         windCtx.fillStyle = '#666';
         windCtx.textAlign = 'center';
         windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', windCanvas.width/2, windCanvas.height/2);
@@ -156,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 画像生成ボタンの処理
     generateBtn.addEventListener('click', async function() {
+        console.log('風データ生成開始');
         try {
             // 入力値の取得
             const contrast = parseFloat(contrastInput.value);
@@ -164,86 +144,41 @@ document.addEventListener('DOMContentLoaded', function() {
             // ローディング表示
             loadingIndicator.style.display = 'block';
             dataContainer.style.display = 'none';
-            canvasContainer.style.display = 'none';
             errorMessage.style.display = 'none';
             downloadBtn.disabled = true;
             
             // プロキシサーバーから風データを取得（または失敗した場合はモックデータを使用）
+            console.log('風データ取得中...');
             let windData;
             try {
                 windData = await fetchWindData();
+                console.log('API風データ取得成功', windData);
             } catch (error) {
                 console.warn('API取得エラー、モックデータを使用します:', error);
                 windData = generateMockWindData();
+                console.log('モックデータ生成完了', windData);
             }
             
             // データをテーブルに表示
             displayWindData(windData);
             
-            // まず通常の風データグラフィックを生成
+            // 風データグラフィックを生成
+            console.log('風データグラフィック生成中...');
             drawWindDataGraphic(windCanvas, windData, contrast, showArrows);
-            
-            // その後、ロゴ内に風データを描画
-            drawWindDataInLogo(logoCanvas, windCanvas, contrast, showArrows);
             
             // ローディングを非表示
             loadingIndicator.style.display = 'none';
-            canvasContainer.style.display = 'block';
             dataContainer.style.display = 'block';
             downloadBtn.disabled = false;
             
-            // 現在の日時を表示
-            generationTime.textContent = new Date().toLocaleString('ja-JP');
+            console.log('風データ生成完了');
         } catch (error) {
-            console.error('Error:', error);
+            console.error('エラー発生:', error);
             loadingIndicator.style.display = 'none';
             errorMessage.textContent = error.message || 'エラーが発生しました。';
             errorMessage.style.display = 'block';
         }
     });
-    
-    // ロゴに風データを描画する関数
-    function drawWindDataInLogo(logoCanvas, windDataCanvas, contrast, showArrows) {
-        const logoCtx = logoCanvas.getContext('2d');
-        const windDataCtx = windDataCanvas.getContext('2d');
-        
-        // キャンバスをクリア
-        logoCtx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
-        
-        // ロゴの形状を描画（マスクとして使用）
-        defineFuhaLogoPath(logoCtx, logoCanvas.width, logoCanvas.height);
-        
-        // 背景色を設定（緑色）
-        logoCtx.fillStyle = '#009E4F';  // Fuhaロゴの緑色
-        logoCtx.fill();
-        
-        // クリッピングパスを設定（ロゴの形状内だけに描画）
-        logoCtx.save();
-        logoCtx.beginPath();
-        defineFuhaLogoPath(logoCtx, logoCanvas.width, logoCanvas.height);
-        logoCtx.clip();
-        
-        // 風データを描画
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = logoCanvas.width;
-        tempCanvas.height = logoCanvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        // 風データを一時キャンバスにリサイズして描画
-        tempCtx.drawImage(windDataCanvas, 0, 0, windDataCanvas.width, windDataCanvas.height, 
-                          0, 0, logoCanvas.width, logoCanvas.height);
-        
-        // 半透明で風データをロゴに重ねる
-        logoCtx.globalAlpha = 0.7;  // 透明度を調整
-        logoCtx.drawImage(tempCanvas, 0, 0);
-        logoCtx.globalAlpha = 1.0;
-        
-        // クリッピングを解除
-        logoCtx.restore();
-        
-        // ロゴの白い曲線を描画
-        drawLogoLines(logoCtx, logoCanvas.width, logoCanvas.height);
-    }
     
     // プロキシサーバーから風データを取得する関数
     async function fetchWindData() {
@@ -294,12 +229,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 風データグラフィックの描画
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
+        console.log('風データグラフィック描画開始', {windData, contrastFactor, showArrows});
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
         
         // キャンバスをクリア
         ctx.clearRect(0, 0, width, height);
+        
+        // 背景を設定（グラデーション）
+        const bgGradient = ctx.createLinearGradient(0, 0, width, 0);
+        bgGradient.addColorStop(0, '#f5f5f5');
+        bgGradient.addColorStop(1, '#e0e0e0');
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, width, height);
         
         // 風速の最大値・最小値を取得（正規化用）
         const maxWindSpeed = Math.max(...windData.map(data => data.wind_speed));
@@ -332,129 +275,158 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         });
         
-        // イメージデータを作成
-        const imageData = ctx.createImageData(width, height);
-        const data = imageData.data;
-        
-        // 影響範囲の係数
-        const influenceFactor = Math.max(width, height) / 5;
-        
-        // 各ピクセルの値を計算
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                // 各都市からの影響を計算
-                let totalValue = 0;
-                let totalWeight = 0;
-                
-                for (const city of cityData) {
-                    // 都市からの距離を計算
-                    const dx = x - city.x;
-                    const dy = y - city.y;
-                    const distance = Math.sqrt(dx*dx + dy*dy);
-                    
-                    // 距離に基づく重み
-                    let weight;
-                    if (distance < 1) {
-                        weight = 1.0;
-                    } else {
-                        weight = 1.0 / (1 + (distance / influenceFactor)**2);
-                    }
-                    
-                    // 風向きに沿った距離を計算
-                    const flowDistance = dx * city.wind_x + dy * city.wind_y;
-                    
-                    // 基本グラデーション（風速に基づく）
-                    const baseGradient = (city.norm_speed - 0.5) * 2 * 80;
-                    
-                    // 風向きに沿った滑らかなグラデーション
-                    const directionFactor = 0.015;
-                    const directionGradient = Math.tanh(flowDistance * directionFactor) * 50 * city.norm_speed;
-                    
-                    // 効果を組み合わせる
-                    const combinedEffect = baseGradient + directionGradient;
-                    
-                    // 重み付きの値を累積
-                    totalValue += combinedEffect * weight;
-                    totalWeight += weight;
-                }
-                
-                // 重み付き平均
-                let avgEffect = totalWeight > 0 ? totalValue / totalWeight : 0;
-                
-                // コントラスト調整
-                avgEffect *= contrastFactor;
-                
-                // グレースケール値に変換（0～255）
-                let pixelValue = 128 + avgEffect;
-                pixelValue = Math.max(0, Math.min(pixelValue, 255));
-                
-                // イメージデータにセット（RGBA）
-                const offset = (y * width + x) * 4;
-                data[offset] = pixelValue;     // R
-                data[offset + 1] = pixelValue; // G
-                data[offset + 2] = pixelValue; // B
-                data[offset + 3] = 255;        // A (不透明)
-            }
-        }
-        
-        // イメージデータを描画
-        ctx.putImageData(imageData, 0, 0);
+        // 風の流れを表現する曲線を描画
+        drawWindFlowPatterns(ctx, cityData, width, height, maxWindSpeed, minWindSpeed, contrastFactor);
         
         // 風向きの矢印を追加（オプション）
         if (showArrows) {
-            for (const city of cityData) {
-                // 風速に比例した矢印の長さ
-                const arrowLength = Math.min(30, Math.max(10, city.wind_speed * 5));
-                
-                // 矢印の先端
-                const endX = city.x + Math.cos(city.wind_rad) * arrowLength;
-                const endY = city.y + Math.sin(city.wind_rad) * arrowLength;
-                
-                // 矢印の軸を描画
-                ctx.beginPath();
-                ctx.moveTo(city.x, city.y);
-                ctx.lineTo(endX, endY);
-                ctx.strokeStyle = 'black';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                // 矢印の頭部を描画
-                const headLength = arrowLength / 3;
-                const headWidth = headLength / 2;
-                
-                const backX = -Math.cos(city.wind_rad) * headLength;
-                const backY = -Math.sin(city.wind_rad) * headLength;
-                
-                const leftX = endX + backX - Math.sin(city.wind_rad) * headWidth;
-                const leftY = endY + backY + Math.cos(city.wind_rad) * headWidth;
-                
-                const rightX = endX + backX + Math.sin(city.wind_rad) * headWidth;
-                const rightY = endY + backY - Math.cos(city.wind_rad) * headWidth;
-                
-                ctx.beginPath();
-                ctx.moveTo(endX, endY);
-                ctx.lineTo(leftX, leftY);
-                ctx.lineTo(rightX, rightY);
-                ctx.closePath();
-                ctx.fillStyle = 'black';
-                ctx.fill();
-            }
+            drawWindArrows(ctx, cityData);
         }
     }
     
-    // ダウンロードボタンの処理
+    // 風の流れを表現する線パターンを描画する関数
+    function drawWindFlowPatterns(ctx, cityData, width, height, maxWindSpeed, minWindSpeed, contrastFactor) {
+        // 各都市からの風の流れを表現する曲線を描画
+        cityData.forEach(city => {
+            // 風速に基づいた色を取得
+            const color = getWindColor(city.wind_speed, maxWindSpeed, minWindSpeed);
+            
+            // 線の数（風速に比例）
+            const lineCount = Math.max(3, Math.ceil(city.wind_speed));
+            
+            // 風の方向に沿った線を描画
+            for (let i = 0; i < lineCount; i++) {
+                // ランダムな開始位置
+                const startOffset = (Math.random() - 0.5) * 30;
+                const startX = city.x + startOffset;
+                const startY = city.y + startOffset;
+                
+                // 風速に応じた線の長さ
+                const length = 20 + city.wind_speed * 5 * contrastFactor;
+                
+                // 終点
+                const endX = startX + city.wind_x * length;
+                const endY = startY + city.wind_y * length;
+                
+                // 制御点（風の曲がり具合）
+                const curveFactor = 10 + Math.random() * 20;
+                const ctrlX = startX + city.wind_x * length * 0.5 - city.wind_y * curveFactor;
+                const ctrlY = startY + city.wind_y * length * 0.5 + city.wind_x * curveFactor;
+                
+                // パスの描画
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
+                
+                // 線のスタイル設定
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1 + Math.random() * 2;
+                ctx.globalAlpha = 0.4 + Math.random() * 0.4;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
+        });
+    }
+    
+    // 風向きの矢印を描画する関数
+    function drawWindArrows(ctx, cityData) {
+        cityData.forEach(city => {
+            // 風速に比例した矢印の長さ
+            const arrowLength = Math.min(30, Math.max(10, city.wind_speed * 3));
+            
+            // 矢印の先端
+            const endX = city.x + Math.cos(city.wind_rad) * arrowLength;
+            const endY = city.y + Math.sin(city.wind_rad) * arrowLength;
+            
+            // 矢印の軸を描画
+            ctx.beginPath();
+            ctx.moveTo(city.x, city.y);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = 'rgba(0, 158, 79, 0.8)'; // 緑色半透明
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // 矢印の頭部を描画
+            const headLength = arrowLength / 3;
+            const headWidth = headLength / 2;
+            
+            const backX = -Math.cos(city.wind_rad) * headLength;
+            const backY = -Math.sin(city.wind_rad) * headLength;
+            
+            const leftX = endX + backX - Math.sin(city.wind_rad) * headWidth;
+            const leftY = endY + backY + Math.cos(city.wind_rad) * headWidth;
+            
+            const rightX = endX + backX + Math.sin(city.wind_rad) * headWidth;
+            const rightY = endY + backY - Math.cos(city.wind_rad) * headWidth;
+            
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(leftX, leftY);
+            ctx.lineTo(rightX, rightY);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(0, 158, 79, 0.8)'; // 緑色半透明
+            ctx.fill();
+        });
+    }
+    
+    // 画像をダウンロードする処理
     downloadBtn.addEventListener('click', function() {
+        console.log('合成画像のダウンロード処理開始');
+        
+        // 合成画像用のキャンバスを作成
+        const combinedCanvas = document.createElement('canvas');
+        const logoHeight = logoImage.height || 300;
+        const windHeight = windCanvas.height || 200;
+        const totalHeight = logoHeight + windHeight;
+        
+        combinedCanvas.width = 600;
+        combinedCanvas.height = totalHeight;
+        
+        const combinedCtx = combinedCanvas.getContext('2d');
+        
+        // 背景を白色に
+        combinedCtx.fillStyle = 'white';
+        combinedCtx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+        
+        // ロゴ画像を描画
+        combinedCtx.drawImage(logoImage, 0, 0, combinedCanvas.width, logoHeight);
+        
+        // 風データキャンバスを描画
+        combinedCtx.drawImage(windCanvas, 0, logoHeight, combinedCanvas.width, windHeight);
+        
+        // ダウンロードリンクを作成
         const link = document.createElement('a');
-        link.href = logoCanvas.toDataURL('image/png');
+        link.href = combinedCanvas.toDataURL('image/png');
         const now = new Date();
         const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        link.download = `fuha-wind-logo-${timestamp}.png`;
+        link.download = `fuha-wind-data-${timestamp}.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        console.log('ダウンロード完了');
     });
     
     // 初期化
-    initializeLogoCanvas();
-    initializeWindCanvas();
+    console.log('初期化処理開始');
+    try {
+        // ロゴ画像のパスを設定（実際のファイルパスに置き換えてください）
+        logoImage.src = "fuha-logo.png";
+        logoImage.onload = function() {
+            console.log('ロゴ画像読み込み完了');
+        };
+        logoImage.onerror = function() {
+            console.error('ロゴ画像の読み込みに失敗しました');
+            // エラーメッセージを表示
+            errorMessage.textContent = 'ロゴ画像の読み込みに失敗しました。ファイルパスを確認してください。';
+            errorMessage.style.display = 'block';
+        };
+        
+        // 風データキャンバスを初期化
+        initializeWindCanvas();
+        console.log('初期化完了');
+    } catch (error) {
+        console.error('初期化エラー:', error);
+        errorMessage.textContent = '初期化に失敗しました。ページを再読み込みしてください。';
+        errorMessage.style.display = 'block';
+    }
 });
