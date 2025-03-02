@@ -32,15 +32,8 @@ const LON_MAX = 146.0;  // 最東端（北海道）
 const LAT_MIN = 24.0;   // 最南端（沖縄）
 const LAT_MAX = 46.0;   // 最北端（北海道）
 
-// プロキシサーバーのURL（実際のNetlifyのURLに置き換えてください）
+// プロキシサーバーのURL
 const PROXY_API_URL = "https://japan-wind-proxy.netlify.app/api/wind-data";
-
-// 緑色の色定義
-const COLORS = {
-    lightGreen: "#E1F5E1",
-    green: "#009E4F",
-    darkGreen: "#00773C"
-};
 
 // モックデータを生成する関数（APIが失敗した場合のフォールバック）
 function generateMockWindData() {
@@ -98,21 +91,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // ロゴ画像が読み込まれたらキャンバスサイズを設定
+    logoImage.onload = function() {
+        console.log('ロゴ画像の読み込みが完了しました:', logoImage.width, 'x', logoImage.height);
+        
+        // キャンバスサイズをロゴ画像と同じに設定
+        windCanvas.width = logoImage.width;
+        windCanvas.height = logoImage.height;
+        
+        // 初期キャンバス表示を更新
+        initializeWindCanvas();
+    };
+    
     // 初期の風データキャンバス描画
     function initializeWindCanvas() {
         console.log('風データキャンバスの初期化');
         if (!windCtx) return;
         
-        // キャンバスをクリア
+        // キャンバスをクリア（透明に）
         windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
         
-        // 背景色を設定
-        windCtx.fillStyle = '#f0f0f0';
+        // 半透明のオーバーレイとして指示テキストを描画
+        windCtx.fillStyle = 'rgba(240, 240, 240, 0.6)';
         windCtx.fillRect(0, 0, windCanvas.width, windCanvas.height);
         
-        // 指示テキストを描画
         windCtx.font = '16px Arial';
-        windCtx.fillStyle = '#666';
+        windCtx.fillStyle = '#333';
         windCtx.textAlign = 'center';
         windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', 
                          windCanvas.width/2, windCanvas.height/2);
@@ -170,14 +174,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 風データグラフィックの描画 - 元のアルゴリズムを使用
+    // 風データグラフィックの描画 - 半透明オーバーレイとして描画
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
         console.log('風データグラフィック描画開始');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
         
-        // キャンバスをクリア
+        // キャンバスを完全にクリア（透明に）
         ctx.clearRect(0, 0, width, height);
         
         // 風速の最大値・最小値を取得（正規化用）
@@ -211,8 +215,14 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         });
         
+        // オフスクリーンキャンバスを作成（イメージデータ処理用）
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = width;
+        offscreenCanvas.height = height;
+        const offCtx = offscreenCanvas.getContext('2d');
+        
         // イメージデータを作成
-        const imageData = ctx.createImageData(width, height);
+        const imageData = offCtx.createImageData(width, height);
         const data = imageData.data;
         
         // 影響範囲の係数
@@ -267,17 +277,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 let pixelValue = 128 + avgEffect;
                 pixelValue = Math.max(0, Math.min(pixelValue, 255));
                 
-                // イメージデータにセット（RGBA）
+                // イメージデータにセット（RGBAで、アルファは半透明に）
                 const offset = (y * width + x) * 4;
                 data[offset] = pixelValue;     // R
                 data[offset + 1] = pixelValue; // G
                 data[offset + 2] = pixelValue; // B
-                data[offset + 3] = 255;        // A (不透明)
+                data[offset + 3] = 180;        // A (半透明)
             }
         }
         
-        // イメージデータを描画
-        ctx.putImageData(imageData, 0, 0);
+        // オフスクリーンキャンバスにイメージデータを描画
+        offCtx.putImageData(imageData, 0, 0);
+        
+        // メインキャンバスにオフスクリーンキャンバスを描画
+        ctx.drawImage(offscreenCanvas, 0, 0);
         
         // 風向きの矢印を追加（オプション）
         if (showArrows) {
@@ -293,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.beginPath();
                 ctx.moveTo(city.x, city.y);
                 ctx.lineTo(endX, endY);
-                ctx.strokeStyle = 'black';
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
@@ -315,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.lineTo(leftX, leftY);
                 ctx.lineTo(rightX, rightY);
                 ctx.closePath();
-                ctx.fillStyle = 'black';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                 ctx.fill();
             }
         }
@@ -372,57 +385,4 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // 合成画像用のキャンバスを作成
             const combinedCanvas = document.createElement('canvas');
-            const logoWidth = logoImage.width || 600;
-            const logoHeight = logoImage.height || 300;
-            const windHeight = windCanvas.height || 200;
-            
-            combinedCanvas.width = logoWidth;
-            combinedCanvas.height = logoHeight + windHeight;
-            
-            const combinedCtx = combinedCanvas.getContext('2d');
-            
-            // 背景を白色に
-            combinedCtx.fillStyle = 'white';
-            combinedCtx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
-            
-            // ロゴ画像を描画
-            combinedCtx.drawImage(logoImage, 0, 0, logoWidth, logoHeight);
-            
-            // 風データキャンバスを描画
-            combinedCtx.drawImage(windCanvas, 0, logoHeight, logoWidth, windHeight);
-            
-            // ダウンロードリンクを作成
-            const link = document.createElement('a');
-            link.href = combinedCanvas.toDataURL('image/png');
-            const now = new Date();
-            const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
-            link.download = `fuha-wind-data-${timestamp}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            console.log('画像ダウンロード完了');
-        } catch (error) {
-            console.error('ダウンロードエラー:', error);
-            showError('画像のダウンロード中にエラーが発生しました: ' + error.message);
-        }
-    });
-    
-    // 初期化
-    try {
-        console.log('初期化処理開始');
-        
-        // ロゴ画像の読み込みエラー処理
-        logoImage.onerror = function() {
-            showError('ロゴ画像の読み込みに失敗しました。ファイルパスを確認してください。');
-        };
-        
-        // 風データキャンバスを初期化
-        initializeWindCanvas();
-        
-        console.log('初期化完了');
-    } catch (error) {
-        console.error('初期化エラー:', error);
-        showError('初期化中にエラーが発生しました: ' + error.message);
-    }
-});
+            combine
