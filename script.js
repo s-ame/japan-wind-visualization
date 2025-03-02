@@ -1,5 +1,4 @@
 // 風データ生成に関するコンスタント
-// デフォルトのAPIキーは削除し、ユーザー入力を必須に
 const JAPAN_REGIONS = [
     // 北海道・東北
     {city: "Sapporo", lat: 43.06, lon: 141.35},     // 北海道
@@ -34,7 +33,7 @@ const LAT_MIN = 24.0;   // 最南端（沖縄）
 const LAT_MAX = 46.0;   // 最北端（北海道）
 
 // プロキシサーバーのURL（実際のNetlifyのURLに置き換えてください）
-const PROXY_API_URL = " https://japan-wind-proxy.netlify.app/api/wind-data";
+const PROXY_API_URL = "https://japan-wind-proxy.netlify.app/api/wind-data";
 
 document.addEventListener('DOMContentLoaded', function() {
     // 要素の取得
