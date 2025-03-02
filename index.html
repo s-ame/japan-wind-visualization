@@ -28,7 +28,7 @@
         .overlay-container {
             width: 100%;
             max-width: 600px;
-            margin: 0 auto 30px;
+            margin: 0 auto;
             position: relative;
             /* 縦横比を2:1に固定するための設定 */
             aspect-ratio: 2 / 1;
@@ -51,6 +51,11 @@
             top: 0; /* 上辺揃え */
             left: 0;
             z-index: 2; /* 上層に配置 */
+        }
+        /* 操作部分のスタイル - オーバーレイコンテナの下に配置 */
+        .controls-container {
+            margin-top: 350px; /* オーバーレイコンテナの高さより大きい値 */
+            padding-top: 30px;
         }
         .controls {
             margin: 20px auto;
@@ -134,53 +139,56 @@
             <!-- ロゴ画像 - 上層に配置、上辺揃え -->
             <img src="fuha-logo.png" alt="Fuhaロゴ" id="logoImage">
         </div>
-    
-        <div class="controls">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label for="contrastInput" class="form-label">コントラスト</label>
-                    <input type="range" class="form-range" id="contrastInput" min="1" max="3" step="0.1" value="1.8">
-                    <div class="text-center"><span id="contrastValue">1.8</span></div>
+        
+        <!-- 操作部分を下に移動 -->
+        <div class="controls-container">
+            <div class="controls">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="contrastInput" class="form-label">コントラスト</label>
+                        <input type="range" class="form-range" id="contrastInput" min="1" max="3" step="0.1" value="1.8">
+                        <div class="text-center"><span id="contrastValue">1.8</span></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">オプション</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showArrows" checked>
+                            <label class="form-check-label" for="showArrows">風向き矢印を表示</label>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">オプション</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="showArrows" checked>
-                        <label class="form-check-label" for="showArrows">風向き矢印を表示</label>
+                <div class="row mt-3">
+                    <div class="col-12 text-center">
+                        <button id="generateBtn" class="btn btn-primary">風データを取得して視覚化</button>
+                        <button id="downloadBtn" class="btn btn-success ms-2" disabled>画像をダウンロード</button>
                     </div>
                 </div>
             </div>
-            <div class="row mt-3">
-                <div class="col-12 text-center">
-                    <button id="generateBtn" class="btn btn-primary">風データを取得して視覚化</button>
-                    <button id="downloadBtn" class="btn btn-success ms-2" disabled>画像をダウンロード</button>
+            
+            <div id="loadingIndicator" class="loading" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
                 </div>
+                <p>風データを取得して画像を生成中...</p>
             </div>
-        </div>
-        
-        <div id="loadingIndicator" class="loading" style="display: none;">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p>風データを取得して画像を生成中...</p>
-        </div>
-        
-        <div id="dataContainer" class="data-table" style="display: none;">
-            <h3>各地域の風データ</h3>
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th>都市</th>
-                            <th>風速 (m/s)</th>
-                            <th>風向 (度)</th>
-                            <th>方角</th>
-                        </tr>
-                    </thead>
-                    <tbody id="windDataTable">
-                        <!-- 風データがここに動的に挿入されます -->
-                    </tbody>
-                </table>
+            
+            <div id="dataContainer" class="data-table" style="display: none;">
+                <h3>各地域の風データ</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>都市</th>
+                                <th>風速 (m/s)</th>
+                                <th>風向 (度)</th>
+                                <th>方角</th>
+                            </tr>
+                        </thead>
+                        <tbody id="windDataTable">
+                            <!-- 風データがここに動的に挿入されます -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         
