@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 要素の取得
     const windCanvas = document.getElementById('windCanvas');
     const logoImage = document.getElementById('logoImage');
-    const overlayContainer = document.querySelector('.overlay-container');
+    const windContainer = document.querySelector('.wind-container');
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const contrastInput = document.getElementById('contrastInput');
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // キャンバスのサイズを設定（縦横比2:1）
     function setupCanvas() {
         // コンテナの幅を取得
-        const containerWidth = overlayContainer.offsetWidth;
+        const containerWidth = windContainer.offsetWidth;
         // 縦横比2:1に基づく高さを計算
         const containerHeight = containerWidth / 2;
         
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setupCanvas();
     });
     
-    // ページ読み込み完了時にキャンバスを設定
+    // ロゴ画像の読み込み完了時にキャンバスを設定
     logoImage.onload = function() {
         console.log('ロゴ画像の読み込みが完了しました');
         setupCanvas();
@@ -365,9 +365,6 @@ document.addEventListener('DOMContentLoaded', function() {
             errorMessage.style.display = 'none';
             downloadBtn.disabled = true;
             
-            // ロゴを一時的に非表示にして風データを描画
-            logoImage.style.visibility = 'hidden';
-            
             // プロキシサーバーから風データを取得
             const windData = await fetchWindData();
             
@@ -376,9 +373,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 風データグラフィックを生成
             drawWindDataGraphic(windCanvas, windData, contrast, showArrows);
-            
-            // ロゴを再表示
-            logoImage.style.visibility = 'visible';
             
             // ローディングを非表示
             loadingIndicator.style.display = 'none';
@@ -390,9 +384,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('エラー発生:', error);
             loadingIndicator.style.display = 'none';
             showError('風データの生成中にエラーが発生しました: ' + error.message);
-            
-            // エラー時もロゴを再表示
-            logoImage.style.visibility = 'visible';
         }
     });
     
@@ -406,40 +397,19 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('ダウンロードボタンがクリックされました');
         
         try {
-            // 合成画像用のキャンバスを作成
-            const combinedCanvas = document.createElement('canvas');
-            combinedCanvas.width = windCanvas.width;
-            combinedCanvas.height = windCanvas.height;
+            // ダウンロード用のキャンバスを作成
+            const downloadCanvas = document.createElement('canvas');
+            downloadCanvas.width = windCanvas.width;
+            downloadCanvas.height = windCanvas.height;
             
-            const combinedCtx = combinedCanvas.getContext('2d');
+            const downloadCtx = downloadCanvas.getContext('2d');
             
             // 風データキャンバスを描画
-            combinedCtx.drawImage(windCanvas, 0, 0);
-            
-            // ロゴ画像を上に重ねて描画
-            // キャンバスと同じサイズにロゴを描画
-            const logoAspectRatio = logoImage.width / logoImage.height;
-            let logoWidth, logoHeight, logoX, logoY;
-            
-            if (logoAspectRatio > 2) {
-                // ロゴが横長の場合
-                logoHeight = combinedCanvas.height;
-                logoWidth = logoHeight * logoAspectRatio;
-                logoX = (combinedCanvas.width - logoWidth) / 2;
-                logoY = 0;
-            } else {
-                // ロゴが縦長または正方形に近い場合
-                logoWidth = combinedCanvas.width;
-                logoHeight = logoWidth / logoAspectRatio;
-                logoX = 0;
-                logoY = (combinedCanvas.height - logoHeight) / 2;
-            }
-            
-            combinedCtx.drawImage(logoImage, logoX, logoY, logoWidth, logoHeight);
+            downloadCtx.drawImage(windCanvas, 0, 0);
             
             // ダウンロードリンクを作成
             const link = document.createElement('a');
-            link.href = combinedCanvas.toDataURL('image/png');
+            link.href = downloadCanvas.toDataURL('image/png');
             const now = new Date();
             const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
             link.download = `fuha-wind-data-${timestamp}.png`;
@@ -460,6 +430,13 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     // 初期設定
-    setupCanvas();
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        // すでにページが読み込まれている場合
+        setupCanvas();
+    } else {
+        // ページの読み込みを待つ
+        window.addEventListener('load', setupCanvas);
+    }
+    
     console.log('初期化完了');
 });
