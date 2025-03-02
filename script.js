@@ -108,13 +108,14 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('風データキャンバスの初期化');
         if (!windCtx) return;
         
-        // キャンバスをクリア（透明に）
+        // キャンバスをクリア
         windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
         
-        // 半透明のオーバーレイとして指示テキストを描画
-        windCtx.fillStyle = 'rgba(240, 240, 240, 0.6)';
+        // 指示テキスト用の背景
+        windCtx.fillStyle = '#f0f0f0';
         windCtx.fillRect(0, 0, windCanvas.width, windCanvas.height);
         
+        // 指示テキストを描画
         windCtx.font = '16px Arial';
         windCtx.fillStyle = '#333';
         windCtx.textAlign = 'center';
@@ -174,15 +175,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 風データグラフィックの描画 - 半透明オーバーレイとして描画
+    // 風データグラフィックの描画 - 不透明に設定
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
         console.log('風データグラフィック描画開始');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
         
-        // キャンバスを完全にクリア（透明に）
+        // キャンバスをクリア
         ctx.clearRect(0, 0, width, height);
+        
+        // 背景色を設定
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, 0, width, height);
         
         // 風速の最大値・最小値を取得（正規化用）
         const maxWindSpeed = Math.max(...windData.map(data => data.wind_speed));
@@ -215,14 +220,8 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         });
         
-        // オフスクリーンキャンバスを作成（イメージデータ処理用）
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = width;
-        offscreenCanvas.height = height;
-        const offCtx = offscreenCanvas.getContext('2d');
-        
         // イメージデータを作成
-        const imageData = offCtx.createImageData(width, height);
+        const imageData = ctx.createImageData(width, height);
         const data = imageData.data;
         
         // 影響範囲の係数
@@ -277,20 +276,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 let pixelValue = 128 + avgEffect;
                 pixelValue = Math.max(0, Math.min(pixelValue, 255));
                 
-                // イメージデータにセット（RGBAで、アルファは半透明に）
+                // イメージデータにセット（RGBAで、アルファは完全不透明に）
                 const offset = (y * width + x) * 4;
                 data[offset] = pixelValue;     // R
                 data[offset + 1] = pixelValue; // G
                 data[offset + 2] = pixelValue; // B
-                data[offset + 3] = 180;        // A (半透明)
+                data[offset + 3] = 255;        // A (完全不透明)
             }
         }
         
-        // オフスクリーンキャンバスにイメージデータを描画
-        offCtx.putImageData(imageData, 0, 0);
-        
-        // メインキャンバスにオフスクリーンキャンバスを描画
-        ctx.drawImage(offscreenCanvas, 0, 0);
+        // イメージデータを描画
+        ctx.putImageData(imageData, 0, 0);
         
         // 風向きの矢印を追加（オプション）
         if (showArrows) {
@@ -306,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.beginPath();
                 ctx.moveTo(city.x, city.y);
                 ctx.lineTo(endX, endY);
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.strokeStyle = 'black';
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
@@ -328,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.lineTo(leftX, leftY);
                 ctx.lineTo(rightX, rightY);
                 ctx.closePath();
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillStyle = 'black';
                 ctx.fill();
             }
         }
@@ -351,6 +347,9 @@ document.addEventListener('DOMContentLoaded', function() {
             errorMessage.style.display = 'none';
             downloadBtn.disabled = true;
             
+            // ロゴを一時的に非表示にして風データを描画
+            logoImage.style.visibility = 'hidden';
+            
             // プロキシサーバーから風データを取得
             const windData = await fetchWindData();
             
@@ -359,6 +358,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 風データグラフィックを生成
             drawWindDataGraphic(windCanvas, windData, contrast, showArrows);
+            
+            // ロゴを再表示
+            logoImage.style.visibility = 'visible';
             
             // ローディングを非表示
             loadingIndicator.style.display = 'none';
@@ -370,6 +372,9 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('エラー発生:', error);
             loadingIndicator.style.display = 'none';
             showError('風データの生成中にエラーが発生しました: ' + error.message);
+            
+            // エラー時もロゴを再表示
+            logoImage.style.visibility = 'visible';
         }
     });
     
@@ -390,11 +395,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const combinedCtx = combinedCanvas.getContext('2d');
             
-            // ロゴ画像を描画
-            combinedCtx.drawImage(logoImage, 0, 0);
-            
-            // 風データキャンバスを重ねて描画
+            // 風データキャンバスを描画
             combinedCtx.drawImage(windCanvas, 0, 0);
+            
+            // ロゴ画像を上に重ねて描画
+            combinedCtx.drawImage(logoImage, 0, 0);
             
             // ダウンロードリンクを作成
             const link = document.createElement('a');
