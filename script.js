@@ -1,5 +1,5 @@
 // 風データ生成に関するコンスタント
-const DEFAULT_API_KEY = 'b048bfbf7915824c5a16a97f3cbe4f30';
+// デフォルトのAPIキーは削除し、ユーザー入力を必須に
 const JAPAN_REGIONS = [
     // 北海道・東北
     {city: "Sapporo", lat: 43.06, lon: 141.35},     // 北海道
@@ -57,10 +57,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // 画像生成ボタンの処理
     generateBtn.addEventListener('click', async function() {
         try {
+            // APIキーの確認（必須）
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                throw new Error('OpenWeatherMap APIキーを入力してください。上記の手順でAPIキーを取得できます。');
+            }
+            
             // 入力値の取得
             const contrast = parseFloat(contrastInput.value);
             const showArrows = showArrowsCheckbox.checked;
-            const apiKey = apiKeyInput.value.trim() || DEFAULT_API_KEY;
             
             // ローディング表示
             loadingIndicator.style.display = 'block';
@@ -103,6 +108,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return fetch(url)
                 .then(response => {
                     if (!response.ok) {
+                        if (response.status === 401) {
+                            throw new Error('APIキーが無効です。正しいAPIキーを入力してください。');
+                        }
                         throw new Error(`${region.city}の風データ取得に失敗: ${response.status}`);
                     }
                     return response.json();
@@ -118,23 +126,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error(`Error fetching data for ${region.city}:`, error);
-                    // エラー時はダミーデータを返す
-                    return {
-                        city: region.city,
-                        lat: region.lat,
-                        lon: region.lon,
-                        wind_speed: 0,
-                        wind_deg: 0,
-                        error: true
-                    };
+                    // エラーを上位に伝播
+                    throw error;
                 });
         });
         
         // すべてのリクエストが完了するのを待つ
-        const results = await Promise.all(promises);
-        
-        // エラーのない結果だけを返す
-        return results.filter(data => !data.error);
+        return Promise.all(promises);
     }
     
     // 風データをテーブルに表示
@@ -330,4 +328,10 @@ document.addEventListener('DOMContentLoaded', function() {
         link.click();
         document.body.removeChild(link);
     });
+
+    // 初期キャンバス表示
+    ctx.font = '20px Arial';
+    ctx.fillStyle = '#666';
+    ctx.textAlign = 'center';
+    ctx.fillText('APIキーを入力して「風データを取得して視覚化」ボタンをクリックしてください', canvas.width/2, canvas.height/2);
 });
