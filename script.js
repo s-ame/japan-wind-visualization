@@ -117,8 +117,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // キャンバスをクリア
         windCtx.clearRect(0, 0, windCanvas.width, windCanvas.height);
         
-        // 指示テキスト用の背景
-        windCtx.fillStyle = '#f0f0f0';
+        // 背景を白に
+        windCtx.fillStyle = '#ffffff';
         windCtx.fillRect(0, 0, windCanvas.width, windCanvas.height);
         
         // 指示テキストを描画
@@ -129,6 +129,15 @@ document.addEventListener('DOMContentLoaded', function() {
         windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', 
                          windCanvas.width/2, windCanvas.height/2);
     }
+    
+    // 点描で使用するディザリングパターン
+    // Floyd-Steinberg ディザリングの拡散比率
+    const DITHERING_MATRIX = [
+        {x: 1, y: 0, weight: 7/16},
+        {x: -1, y: 1, weight: 3/16},
+        {x: 0, y: 1, weight: 5/16},
+        {x: 1, y: 1, weight: 1/16}
+    ];
     
     // ウィンドウサイズ変更時にキャンバスを再設定
     window.addEventListener('resize', function() {
@@ -194,34 +203,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 風データグラフィックの描画 - 不透明に設定
+    // 風データグラフィックの描画 - 点描（ディザリング）で黒白2色のみで表現
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
-        console.log('風データグラフィック描画開始');
+        console.log('風データグラフィック描画開始 - 点描モード');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
         
-        // キャンバスをクリア
+        // キャンバスをクリア - 背景は白に
         ctx.clearRect(0, 0, width, height);
-        
-        // 背景色を設定
-        ctx.fillStyle = '#f0f0f0';
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
         
-        // 風速の最大値・最小値を取得（正規化用）
+        // 風速の最大値・最小値を取得
         const maxWindSpeed = Math.max(...windData.map(data => data.wind_speed));
         const minWindSpeed = Math.min(...windData.map(data => data.wind_speed));
-        const windSpeedRange = maxWindSpeed - minWindSpeed;
         
         // 各都市の位置と風データを準備
         const cityData = windData.map(data => {
             // 緯度・経度をピクセル座標に変換
             const x = Math.floor((data.lon - LON_MIN) / (LON_MAX - LON_MIN) * width);
             const y = Math.floor((LAT_MAX - data.lat) / (LAT_MAX - LAT_MIN) * height);
-            
-            // 風速を0～1の範囲に正規化
-            const normSpeed = windSpeedRange > 0 ? 
-                (data.wind_speed - minWindSpeed) / windSpeedRange : 0.5;
             
             // 風向きをラジアンに変換
             const windRad = data.wind_deg * Math.PI / 180;
@@ -231,7 +233,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 x: x,
                 y: y,
                 wind_speed: data.wind_speed,
-                norm_speed: normSpeed,
                 wind_deg: data.wind_deg,
                 wind_rad: windRad,
                 wind_x: Math.cos(windRad),
@@ -239,14 +240,13 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         });
         
-        // イメージデータを作成
-        const imageData = ctx.createImageData(width, height);
-        const data = imageData.data;
+        // グレースケールの中間値を生成（後で黒白の2色に変換）
+        const grayBuffer = new Array(width * height).fill(1.0); // 初期値は白（1.0）
         
         // 影響範囲の係数
         const influenceFactor = Math.max(width, height) / 5;
         
-        // 各ピクセルの値を計算
+        // 各ピクセルの値を計算（グレースケール値を生成）
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 // 各都市からの影響を計算
@@ -270,32 +270,72 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 風向きに沿った距離を計算
                     const flowDistance = dx * city.wind_x + dy * city.wind_y;
                     
-                    // 基本グラデーション（風速に基づく）
-                    const baseGradient = (city.norm_speed - 0.5) * 2 * 80;
+                    // 風速を使った基本グラデーション（0～1の範囲）
+                    const normalizedSpeed = (city.wind_speed - minWindSpeed) / (maxWindSpeed - minWindSpeed || 1);
                     
-                    // 風向きに沿った滑らかなグラデーション
+                    // 風向きを使った方向性グラデーション
                     const directionFactor = 0.015;
-                    const directionGradient = Math.tanh(flowDistance * directionFactor) * 50 * city.norm_speed;
+                    const directionEffect = Math.tanh(flowDistance * directionFactor) * 0.3;
                     
-                    // 効果を組み合わせる
-                    const combinedEffect = baseGradient + directionGradient;
+                    // 効果を組み合わせる（0～1の範囲）
+                    let combinedEffect = normalizedSpeed + directionEffect;
+                    combinedEffect = Math.max(0, Math.min(1, combinedEffect));
                     
                     // 重み付きの値を累積
                     totalValue += combinedEffect * weight;
                     totalWeight += weight;
                 }
                 
-                // 重み付き平均
-                let avgEffect = totalWeight > 0 ? totalValue / totalWeight : 0;
+                // 重み付き平均（0～1の範囲）
+                let grayValue = totalWeight > 0 ? totalValue / totalWeight : 1.0;
                 
-                // コントラスト調整
-                avgEffect *= contrastFactor;
+                // コントラスト調整（contrastFactorが1.0の場合は変化なし）
+                grayValue = 0.5 + (grayValue - 0.5) * contrastFactor;
+                grayValue = Math.max(0, Math.min(1, grayValue));
                 
-                // グレースケール値に変換（0～255）
-                let pixelValue = 128 + avgEffect;
-                pixelValue = Math.max(0, Math.min(pixelValue, 255));
+                // グレースケール値を格納（1.0が白、0.0が黒）
+                grayBuffer[y * width + x] = grayValue;
+            }
+        }
+        
+        // Floyd-Steinberg ディザリングで2値化
+        const ditherBuffer = new Array(width * height).fill(1.0);
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const index = y * width + x;
+                const oldPixel = grayBuffer[index];
                 
-                // イメージデータにセット（RGBAで、アルファは完全不透明に）
+                // 2値化（閾値0.5で白か黒か決定）
+                const newPixel = oldPixel > 0.5 ? 1.0 : 0.0;
+                ditherBuffer[index] = newPixel;
+                
+                // 量子化誤差を計算
+                const error = oldPixel - newPixel;
+                
+                // 誤差拡散
+                for (const offset of DITHERING_MATRIX) {
+                    const nx = x + offset.x;
+                    const ny = y + offset.y;
+                    
+                    // 画像の範囲内かチェック
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        const neighborIndex = ny * width + nx;
+                        grayBuffer[neighborIndex] += error * offset.weight;
+                    }
+                }
+            }
+        }
+        
+        // イメージデータに変換（黒と白の2色のみ）
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+        
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const index = y * width + x;
+                const pixelValue = ditherBuffer[index] > 0.5 ? 255 : 0; // 白か黒
+                
                 const offset = (y * width + x) * 4;
                 data[offset] = pixelValue;     // R
                 data[offset + 1] = pixelValue; // G
