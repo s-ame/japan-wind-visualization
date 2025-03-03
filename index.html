@@ -11,8 +11,9 @@
             background-color: white;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100vh;
+            align-items: flex-start; /* 上部に揃える */
+            min-height: 100vh;
+            padding-top: 20px; /* 上部に少し余白を持たせる */
         }
         
         .overlay-container {
@@ -50,7 +51,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background-color: rgba(255, 255, 255, 0.7);
+            background-color: rgba(128, 128, 128, 0.7); /* グレーに変更 */
             z-index: 3;
         }
         
