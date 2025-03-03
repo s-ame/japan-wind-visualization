@@ -35,6 +35,11 @@ const LAT_MAX = 46.0;   // 最北端（北海道）
 // プロキシサーバーのURL
 const PROXY_API_URL = "https://japan-wind-proxy.netlify.app/api/wind-data";
 
+// 点描強度の範囲
+const MIN_INTENSITY = 0.15;  // 最低強度 (低い方が点が少ない)
+const MAX_INTENSITY = 0.9;   // 最高強度 (高い方が点が多い)
+const BASE_CONTRAST = 1.8;   // 基本コントラスト倍率
+
 // モックデータを生成する関数（APIが失敗した場合のフォールバック）
 function generateMockWindData() {
     return JAPAN_REGIONS.map(region => ({
@@ -202,9 +207,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 風データグラフィックの描画 - ノイズベースの点描法で黒白2色のみで表現
+    // 風データグラフィックの描画 - 強化されたコントラストの点描法
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
-        console.log('風データグラフィック描画開始 - ノイズベース点描モード');
+        console.log('風データグラフィック描画開始 - 強化コントラスト点描モード');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
@@ -240,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // グレースケールの中間値を生成（後で黒白の2色に変換）
-        const intensityMap = new Array(width * height).fill(0.3); // 初期値は薄い灰色（0.3）- 最も薄い部分が全体的にグレーになるようにベース値を設定
+        const intensityMap = new Array(width * height).fill(MIN_INTENSITY);
         
         // 影響範囲の係数
         const influenceFactor = Math.max(width, height) / 5;
@@ -269,21 +274,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 風向きに沿った距離を計算
                     const flowDistance = dx * city.wind_x + dy * city.wind_y;
                     
-                    // 風速を使った基本強度（0.3～0.85の範囲）- 0～1の全範囲を使わず、完全な黒と白を避ける
-                    const minIntensity = 0.3;  // 最も弱い風の強度
-                    const maxIntensity = 0.85; // 最も強い風の強度
-                    const intensityRange = maxIntensity - minIntensity;
+                    // 風速を使った基本強度（MIN_INTENSITY～MAX_INTENSITYの範囲）
+                    const intensityRange = MAX_INTENSITY - MIN_INTENSITY;
                     
                     const normalizedSpeed = (city.wind_speed - minWindSpeed) / (maxWindSpeed - minWindSpeed || 1);
-                    const speedIntensity = minIntensity + normalizedSpeed * intensityRange;
+                    const speedIntensity = MIN_INTENSITY + normalizedSpeed * intensityRange;
                     
-                    // 風向きを使った方向性の影響（±0.1程度）
-                    const directionFactor = 0.015;
-                    const directionEffect = Math.tanh(flowDistance * directionFactor) * 0.1;
+                    // 風向きを使った方向性の影響（±0.15程度）- コントラスト向上のため拡大
+                    const directionFactor = 0.02;
+                    const directionEffect = Math.tanh(flowDistance * directionFactor) * 0.15;
                     
-                    // 効果を組み合わせる（0.2～0.95の範囲）
+                    // 効果を組み合わせる
                     let combinedEffect = speedIntensity + directionEffect;
-                    combinedEffect = Math.max(minIntensity, Math.min(maxIntensity, combinedEffect));
+                    combinedEffect = Math.max(MIN_INTENSITY, Math.min(MAX_INTENSITY, combinedEffect));
                     
                     // 重み付きの値を累積
                     totalValue += combinedEffect * weight;
@@ -291,14 +294,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // 重み付き平均
-                let intensity = totalWeight > 0 ? totalValue / totalWeight : minIntensity;
+                let intensity = totalWeight > 0 ? totalValue / totalWeight : MIN_INTENSITY;
                 
-                // コントラスト調整（contrastFactorが1.0の場合は変化なし）
-                const midPoint = (0.3 + 0.85) / 2; // 中間値
-                intensity = midPoint + (intensity - midPoint) * contrastFactor;
-                intensity = Math.max(0.2, Math.min(0.95, intensity)); // 値の範囲を制限
+                // コントラスト調整 - 強化版
+                // 中央値からの距離を拡大（contrastFactor * BASE_CONTRAST）
+                const midPoint = (MIN_INTENSITY + MAX_INTENSITY) / 2;
+                intensity = midPoint + (intensity - midPoint) * contrastFactor * BASE_CONTRAST;
                 
-                // グレースケール値を格納（0が白、1が黒）
+                // 範囲を制限
+                intensity = Math.max(MIN_INTENSITY, Math.min(MAX_INTENSITY, intensity));
+                
+                // グレースケール値を格納
                 intensityMap[y * width + x] = intensity;
             }
         }
@@ -307,17 +313,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const imageData = ctx.createImageData(width, height);
         const data = imageData.data;
         
-        // 乱数ジェネレータ（一貫性のあるパターンを生成するために固定シード値を使用）
-        const random = createRandomGenerator(12345);
+        // 点の密度を制御するための高品質ノイズパターン生成
+        // 乱数ジェネレータを4つ使用し、高度な2次元パターンを生成
+        const random1 = createRandomGenerator(12345);
+        const random2 = createRandomGenerator(67890);
+        const random3 = createRandomGenerator(13579);
+        const random4 = createRandomGenerator(24680);
         
-        // ノイズと閾値比較によるディザリング
+        // 高品質なディザリングパターンで2値化
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const index = y * width + x;
                 const intensity = intensityMap[index];
                 
-                // ランダムな閾値と比較（インテンシティが高いほど黒点が多くなる）
-                const threshold = random();
+                // 4つの乱数を組み合わせて高品質なパターンを生成
+                let noise;
+                if ((x % 2 === 0 && y % 2 === 0) || (x % 2 === 1 && y % 2 === 1)) {
+                    noise = (random1() + random2()) / 2;
+                } else {
+                    noise = (random3() + random4()) / 2;
+                }
+                
+                // コントラスト強化した閾値比較
+                const threshold = noise;
                 const pixel = threshold > intensity ? 255 : 0; // 白か黒
                 
                 const offset = (y * width + x) * 4;
