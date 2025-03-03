@@ -3,37 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>風データビジュアライゼーション - Fuha</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Fuha</title>
     <style>
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+            margin: 0;
+            padding: 0;
             background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        /* 重要: 風データとロゴを重ねるためのコンテナスタイル */
+        
         .overlay-container {
             width: 100%;
             max-width: 600px;
-            margin: 0 auto;
             position: relative;
-            /* 縦横比を2:1に固定するための設定 */
             aspect-ratio: 2 / 1;
         }
-        /* 風データキャンバスのスタイル - 下層に配置 */
+        
         #windCanvas {
             width: 100%;
             height: 100%;
@@ -41,247 +29,59 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 1; /* 下層に配置 */
-            background-color: #f0f0f0;
+            z-index: 1;
+            background-color: white;
         }
-        /* ロゴ画像のスタイル - 上層に配置し上辺揃え */
+        
         #logoImage {
             width: 100%;
             position: absolute;
-            top: 0; /* 上辺揃え */
+            top: 0;
             left: 0;
-            z-index: 2; /* 上層に配置 */
+            z-index: 2;
         }
-        /* 操作部分のスタイル - オーバーレイコンテナの下に配置 */
-        .controls-container {
-            margin-top: 350px; /* オーバーレイコンテナの高さより大きい値 */
-            padding-top: 30px;
+        
+        #loadingIndicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.7);
+            z-index: 3;
         }
-        .controls {
-            margin: 20px auto;
-            padding: 15px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-            max-width: 600px;
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top-color: #009E4F;
+            animation: spin 1s linear infinite;
         }
-        .data-table {
-            margin-top: 30px;
-        }
-        .loading {
-            text-align: center;
-            margin: 20px 0;
-            font-size: 18px;
-            color: #666;
-        }
-        .btn-primary {
-            background-color: #009E4F;
-            border-color: #009E4F;
-        }
-        .btn-primary:hover {
-            background-color: #007a3d;
-            border-color: #007a3d;
-        }
-        .footer {
-            margin-top: 30px;
-            text-align: center;
-            color: #777;
-            font-size: 14px;
-        }
-        #errorMessage {
-            color: #dc3545;
-            margin: 10px auto;
-            font-weight: bold;
-            max-width: 600px;
-            padding: 10px;
-            background-color: #f8d7da;
-            border-radius: 5px;
-            display: none;
-        }
-        .debug-info {
-            margin-top: 30px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 12px;
-            display: none;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .api-status {
-            max-width: 600px;
-            margin: 10px auto;
-            padding: 10px;
-            background-color: #e9f7ef;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 14px;
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>日本の風データビジュアライゼーション</h1>
+    <div class="overlay-container">
+        <!-- 風データキャンバス - 下層に配置 -->
+        <canvas id="windCanvas"></canvas>
         
-        <!-- エラーメッセージ -->
-        <div id="errorMessage" class="text-center"></div>
+        <!-- ロゴ画像 - 上層に配置、上辺揃え -->
+        <img src="fuha-logo.png" alt="Fuhaロゴ" id="logoImage">
         
-        <!-- API接続ステータス -->
-        <div class="api-status">
-            <p>プロキシAPI: <span id="apiStatus">未接続</span></p>
-        </div>
-        
-        <!-- 風データとロゴを重ねるコンテナ - 縦横比2:1に固定 -->
-        <div class="overlay-container">
-            <!-- 風データキャンバス - 下層に配置 -->
-            <canvas id="windCanvas"></canvas>
-            
-            <!-- ロゴ画像 - 上層に配置、上辺揃え -->
-            <img src="fuha-logo.png" alt="Fuhaロゴ" id="logoImage">
-        </div>
-        
-        <!-- 操作部分を下に移動 -->
-        <div class="controls-container">
-            <div class="controls">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="contrastInput" class="form-label">コントラスト</label>
-                        <input type="range" class="form-range" id="contrastInput" min="1" max="3" step="0.1" value="1.8">
-                        <div class="text-center"><span id="contrastValue">1.8</span></div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">オプション</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="showArrows" checked>
-                            <label class="form-check-label" for="showArrows">風向き矢印を表示</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-12 text-center">
-                        <button id="generateBtn" class="btn btn-primary">風データを取得して視覚化</button>
-                        <button id="downloadBtn" class="btn btn-success ms-2" disabled>画像をダウンロード</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="loadingIndicator" class="loading" style="display: none;">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p>風データを取得して画像を生成中...</p>
-            </div>
-            
-            <div id="dataContainer" class="data-table" style="display: none;">
-                <h3>各地域の風データ</h3>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>都市</th>
-                                <th>風速 (m/s)</th>
-                                <th>風向 (度)</th>
-                                <th>方角</th>
-                            </tr>
-                        </thead>
-                        <tbody id="windDataTable">
-                            <!-- 風データがここに動的に挿入されます -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        
-        <!-- デバッグ情報 -->
-        <div id="debugInfo" class="debug-info">
-            <h5>デバッグ情報</h5>
-            <div id="debugLog"></div>
-        </div>
-        
-        <div class="footer">
-            <p>このアプリケーションは OpenWeatherMap API を使用しています。リアルタイムの風データに基づいて生成されます。</p>
-            <p>API接続URL: <code id="apiUrl"></code></p>
+        <!-- ローディングインジケーター -->
+        <div id="loadingIndicator">
+            <div class="spinner"></div>
         </div>
     </div>
-
-    <!-- デバッグモードの切り替え -->
-    <script>
-        // キーボードショートカット Ctrl+Shift+D でデバッグモードを切り替え
-        document.addEventListener('keydown', function(event) {
-            if (event.ctrlKey && event.shiftKey && event.key === 'D') {
-                const debugInfo = document.getElementById('debugInfo');
-                debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
-            }
-        });
-        
-        // コンソールログをキャプチャしてデバッグ情報に表示する
-        const originalLog = console.log;
-        const originalWarn = console.warn;
-        const originalError = console.error;
-        
-        function addToDebugLog(type, args) {
-            const debugLog = document.getElementById('debugLog');
-            if (debugLog) {
-                const message = Array.from(args).map(arg => 
-                    typeof arg === 'object' ? JSON.stringify(arg) : arg
-                ).join(' ');
-                
-                const logEntry = document.createElement('div');
-                logEntry.className = `log-${type}`;
-                logEntry.innerHTML = `<span class="log-time">${new Date().toLocaleTimeString()}</span> <span class="log-type">${type}:</span> ${message}`;
-                
-                debugLog.appendChild(logEntry);
-                debugLog.scrollTop = debugLog.scrollHeight;
-            }
-        }
-        
-        console.log = function() {
-            addToDebugLog('info', arguments);
-            originalLog.apply(console, arguments);
-        };
-        
-        console.warn = function() {
-            addToDebugLog('warn', arguments);
-            originalWarn.apply(console, arguments);
-        };
-        
-        console.error = function() {
-            addToDebugLog('error', arguments);
-            originalError.apply(console, arguments);
-        };
-    </script>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="script.js"></script>
-    
-    <!-- API URL表示 -->
-    <script>
-        // API URLを表示
-        document.addEventListener('DOMContentLoaded', function() {
-            const apiUrlElement = document.getElementById('apiUrl');
-            const apiStatusElement = document.getElementById('apiStatus');
-            
-            if (apiUrlElement) {
-                apiUrlElement.textContent = "https://japan-wind-proxy.netlify.app/api/wind-data";
-            }
-            
-            // API接続テスト
-            fetch("https://japan-wind-proxy.netlify.app/api/wind-data", {
-                method: 'HEAD'
-            }).then(function(response) {
-                if (response.ok) {
-                    apiStatusElement.textContent = "接続OK";
-                    apiStatusElement.style.color = "green";
-                } else {
-                    apiStatusElement.textContent = "接続エラー";
-                    apiStatusElement.style.color = "red";
-                }
-            }).catch(function(error) {
-                apiStatusElement.textContent = "接続エラー";
-                apiStatusElement.style.color = "red";
-                console.error("API接続エラー:", error);
-            });
-        });
-    </script>
 </body>
 </html>
