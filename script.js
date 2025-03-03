@@ -92,6 +92,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // シード値に基づく再現可能な乱数生成器
+    function createRandomGenerator(seed = 12345) {
+        return function() {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
+    }
+    
     // キャンバスのサイズを設定（縦横比2:1）
     function setupCanvas() {
         // コンテナの幅を取得
@@ -129,15 +137,6 @@ document.addEventListener('DOMContentLoaded', function() {
         windCtx.fillText('「風データを取得して視覚化」ボタンをクリックしてください', 
                          windCanvas.width/2, windCanvas.height/2);
     }
-    
-    // 点描で使用するディザリングパターン
-    // Floyd-Steinberg ディザリングの拡散比率
-    const DITHERING_MATRIX = [
-        {x: 1, y: 0, weight: 7/16},
-        {x: -1, y: 1, weight: 3/16},
-        {x: 0, y: 1, weight: 5/16},
-        {x: 1, y: 1, weight: 1/16}
-    ];
     
     // ウィンドウサイズ変更時にキャンバスを再設定
     window.addEventListener('resize', function() {
@@ -203,9 +202,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 風データグラフィックの描画 - 点描（ディザリング）で黒白2色のみで表現
+    // 風データグラフィックの描画 - ノイズベースの点描法で黒白2色のみで表現
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
-        console.log('風データグラフィック描画開始 - 点描モード');
+        console.log('風データグラフィック描画開始 - ノイズベース点描モード');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
@@ -241,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // グレースケールの中間値を生成（後で黒白の2色に変換）
-        const grayBuffer = new Array(width * height).fill(1.0); // 初期値は白（1.0）
+        const intensityMap = new Array(width * height).fill(0.3); // 初期値は薄い灰色（0.3）- 最も薄い部分が全体的にグレーになるようにベース値を設定
         
         // 影響範囲の係数
         const influenceFactor = Math.max(width, height) / 5;
@@ -270,77 +269,62 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 風向きに沿った距離を計算
                     const flowDistance = dx * city.wind_x + dy * city.wind_y;
                     
-                    // 風速を使った基本グラデーション（0～1の範囲）
+                    // 風速を使った基本強度（0.3～0.85の範囲）- 0～1の全範囲を使わず、完全な黒と白を避ける
+                    const minIntensity = 0.3;  // 最も弱い風の強度
+                    const maxIntensity = 0.85; // 最も強い風の強度
+                    const intensityRange = maxIntensity - minIntensity;
+                    
                     const normalizedSpeed = (city.wind_speed - minWindSpeed) / (maxWindSpeed - minWindSpeed || 1);
+                    const speedIntensity = minIntensity + normalizedSpeed * intensityRange;
                     
-                    // 風向きを使った方向性グラデーション
+                    // 風向きを使った方向性の影響（±0.1程度）
                     const directionFactor = 0.015;
-                    const directionEffect = Math.tanh(flowDistance * directionFactor) * 0.3;
+                    const directionEffect = Math.tanh(flowDistance * directionFactor) * 0.1;
                     
-                    // 効果を組み合わせる（0～1の範囲）
-                    let combinedEffect = normalizedSpeed + directionEffect;
-                    combinedEffect = Math.max(0, Math.min(1, combinedEffect));
+                    // 効果を組み合わせる（0.2～0.95の範囲）
+                    let combinedEffect = speedIntensity + directionEffect;
+                    combinedEffect = Math.max(minIntensity, Math.min(maxIntensity, combinedEffect));
                     
                     // 重み付きの値を累積
                     totalValue += combinedEffect * weight;
                     totalWeight += weight;
                 }
                 
-                // 重み付き平均（0～1の範囲）
-                let grayValue = totalWeight > 0 ? totalValue / totalWeight : 1.0;
+                // 重み付き平均
+                let intensity = totalWeight > 0 ? totalValue / totalWeight : minIntensity;
                 
                 // コントラスト調整（contrastFactorが1.0の場合は変化なし）
-                grayValue = 0.5 + (grayValue - 0.5) * contrastFactor;
-                grayValue = Math.max(0, Math.min(1, grayValue));
+                const midPoint = (0.3 + 0.85) / 2; // 中間値
+                intensity = midPoint + (intensity - midPoint) * contrastFactor;
+                intensity = Math.max(0.2, Math.min(0.95, intensity)); // 値の範囲を制限
                 
-                // グレースケール値を格納（1.0が白、0.0が黒）
-                grayBuffer[y * width + x] = grayValue;
+                // グレースケール値を格納（0が白、1が黒）
+                intensityMap[y * width + x] = intensity;
             }
         }
         
-        // Floyd-Steinberg ディザリングで2値化
-        const ditherBuffer = new Array(width * height).fill(1.0);
-        
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const index = y * width + x;
-                const oldPixel = grayBuffer[index];
-                
-                // 2値化（閾値0.5で白か黒か決定）
-                const newPixel = oldPixel > 0.5 ? 1.0 : 0.0;
-                ditherBuffer[index] = newPixel;
-                
-                // 量子化誤差を計算
-                const error = oldPixel - newPixel;
-                
-                // 誤差拡散
-                for (const offset of DITHERING_MATRIX) {
-                    const nx = x + offset.x;
-                    const ny = y + offset.y;
-                    
-                    // 画像の範囲内かチェック
-                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                        const neighborIndex = ny * width + nx;
-                        grayBuffer[neighborIndex] += error * offset.weight;
-                    }
-                }
-            }
-        }
-        
-        // イメージデータに変換（黒と白の2色のみ）
+        // イメージデータを作成（ノイズベースの点描で2値化）
         const imageData = ctx.createImageData(width, height);
         const data = imageData.data;
         
+        // 乱数ジェネレータ（一貫性のあるパターンを生成するために固定シード値を使用）
+        const random = createRandomGenerator(12345);
+        
+        // ノイズと閾値比較によるディザリング
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const index = y * width + x;
-                const pixelValue = ditherBuffer[index] > 0.5 ? 255 : 0; // 白か黒
+                const intensity = intensityMap[index];
+                
+                // ランダムな閾値と比較（インテンシティが高いほど黒点が多くなる）
+                const threshold = random();
+                const pixel = threshold > intensity ? 255 : 0; // 白か黒
                 
                 const offset = (y * width + x) * 4;
-                data[offset] = pixelValue;     // R
-                data[offset + 1] = pixelValue; // G
-                data[offset + 2] = pixelValue; // B
-                data[offset + 3] = 255;        // A (完全不透明)
+                data[offset] = pixel;     // R
+                data[offset + 1] = pixel; // G
+                data[offset + 2] = pixel; // B
+                data[offset + 3] = 255;   // A (完全不透明)
             }
         }
         
