@@ -36,9 +36,10 @@ const LAT_MAX = 46.0;   // 最北端（北海道）
 const PROXY_API_URL = "https://japan-wind-proxy.netlify.app/api/wind-data";
 
 // 点描強度の範囲
-const MIN_INTENSITY = 0.15;  // 最低強度 (低い方が点が少ない)
+const MIN_INTENSITY = 0.3;   // 最低強度 (0.15から0.3に増加 - 明るい部分を暗く)
 const MAX_INTENSITY = 0.9;   // 最高強度 (高い方が点が多い)
-const BASE_CONTRAST = 1.8;   // 基本コントラスト倍率
+const BASE_CONTRAST = 1.6;   // 基本コントラスト倍率 (やや緩和)
+const BASE_DOT_DENSITY = 0.5; // 基本点密度 (高いほど全体的に点が多い)
 
 // モックデータを生成する関数（APIが失敗した場合のフォールバック）
 function generateMockWindData() {
@@ -209,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 風データグラフィックの描画 - 強化されたコントラストの点描法
     function drawWindDataGraphic(canvas, windData, contrastFactor, showArrows) {
-        console.log('風データグラフィック描画開始 - 強化コントラスト点描モード');
+        console.log('風データグラフィック描画開始 - 最終調整点描モード');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
@@ -280,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const normalizedSpeed = (city.wind_speed - minWindSpeed) / (maxWindSpeed - minWindSpeed || 1);
                     const speedIntensity = MIN_INTENSITY + normalizedSpeed * intensityRange;
                     
-                    // 風向きを使った方向性の影響（±0.15程度）- コントラスト向上のため拡大
+                    // 風向きを使った方向性の影響（±0.15程度）
                     const directionFactor = 0.02;
                     const directionEffect = Math.tanh(flowDistance * directionFactor) * 0.15;
                     
@@ -313,12 +314,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const imageData = ctx.createImageData(width, height);
         const data = imageData.data;
         
-        // 点の密度を制御するための高品質ノイズパターン生成
-        // 乱数ジェネレータを4つ使用し、高度な2次元パターンを生成
+        // 点の密度を制御するためのノイズ生成器
         const random1 = createRandomGenerator(12345);
         const random2 = createRandomGenerator(67890);
         const random3 = createRandomGenerator(13579);
         const random4 = createRandomGenerator(24680);
+        
+        // ベース点密度を使用して全体に点を追加
+        const baseNoise = createRandomGenerator(55555);
         
         // 高品質なディザリングパターンで2値化
         for (let y = 0; y < height; y++) {
@@ -332,6 +335,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     noise = (random1() + random2()) / 2;
                 } else {
                     noise = (random3() + random4()) / 2;
+                }
+                
+                // ベースの点密度を追加（全体的に点を増やす）
+                if (baseNoise() < BASE_DOT_DENSITY) {
+                    noise *= 0.8; // ノイズ値を下げて点が現れやすくする
                 }
                 
                 // コントラスト強化した閾値比較
