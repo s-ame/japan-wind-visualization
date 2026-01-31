@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ProScout - ロケハンアプリ</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary: #ff6b35;
+            --primary-dark: #e85a2a;
+            --bg-dark: #0a0a0a;
+            --bg-panel: #151515;
+            --border: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent-cyan: #00d9ff;
+            --accent-yellow: #ffd700;
+            --grid-color: rgba(255, 107, 53, 0.4);
+            --success: #00ff88;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Noto Sans JP', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+        }
+
+        #camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #camera-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Field of View Overlay */
+        #fov-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .frame-box {
+            position: absolute;
+            border: 3px solid var(--grid-color);
+            box-shadow: 0 0 20px rgba(255, 107, 53, 0.3),
+                        inset 0 0 40px rgba(255, 107, 53, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .frame-box::before,
+        .frame-box::after {
+            content: '';
+            position: absolute;
+            background: var(--primary);
+        }
+
+        /* Corner markers */
+        .frame-box::before {
+            top: -3px;
+            left: -3px;
+            width: 30px;
+            height: 30px;
+            border-right: 3px solid var(--bg-dark);
+            border-bottom: 3px solid var(--bg-dark);
+        }
+
+        .frame-box::after {
+            bottom: -3px;
+            right: -3px;
+            width: 30px;
+            height: 30px;
+            border-left: 3px solid var(--bg-dark);
+            border-top: 3px solid var(--bg-dark);
+        }
+
+        .corner-tl, .corner-tr, .corner-bl, .corner-br {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--primary);
+        }
+
+        .corner-tl {
+            top: -3px;
+            left: -3px;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-tr {
+            top: -3px;
+            right: -3px;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .corner-bl {
+            bottom: -3px;
+            left: -3px;
+            border-right: none;
+            border-top: none;
+        }
+
+        .corner-br {
+            bottom: -3px;
+            right: -3px;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Center crosshair */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+        }
+
+        .crosshair::before,
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            background: var(--primary);
+        }
+
+        .crosshair::before {
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+
+        .crosshair::after {
+            left: 50%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            transform: translateX(-50%);
+        }
+
+        /* Rule of thirds grid */
+        .grid-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .grid-lines.active {
+            opacity: 0.3;
+        }
+
+        .grid-line-h,
+        .grid-line-v {
+            position: absolute;
+            background: var(--accent-cyan);
+        }
+
+        .grid-line-h {
+            width: 100%;
+            height: 1px;
+        }
+
+        .grid-line-v {
+            width: 1px;
+            height: 100%;
+        }
+
+        /* Sun position indicator */
+        #sun-indicator {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, var(--accent-yellow) 0%, rgba(255, 215, 0, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            transition: all 0.5s ease-out;
+            filter: blur(8px);
+            opacity: 0.8;
+        }
+
+        #sun-indicator::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: var(--accent-yellow);
+            border-radius: 50%;
+            filter: blur(0);
+            box-shadow: 0 0 20px var(--accent-yellow);
+        }
+
+        /* HUD Info Panels */
+        #hud-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: env(safe-area-inset-top, 20px) 20px 20px;
+            background: linear-gradient(180deg, rgba(10, 10, 10, 0.95) 0%, rgba(10, 10, 10, 0) 100%);
+            z-index: 10;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .info-item {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            color: var(--primary);
+            font-size: 13px;
+            margin-left: 8px;
+        }
+
+        .info-large {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .info-unit {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+
+        /* Control Panel */
+        #control-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-panel);
+            border-top: 2px solid var(--border);
+            padding: 20px 20px calc(env(safe-area-inset-bottom, 20px) + 20px);
+            max-height: 65vh;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+        }
+
+        #control-panel.open {
+            transform: translateY(0);
+        }
+
+        .panel-handle {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 40px;
+            background: var(--bg-panel);
+            border: 2px solid var(--border);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .panel-handle:active {
+            background: var(--border);
+        }
+
+        .panel-handle::before {
+            content: '';
+            width: 40px;
+            height: 4px;
+            background: var(--text-secondary);
+            border-radius: 2px;
+        }
+
+        .control-section {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: var(--primary);
+            margin-right: 8px;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select,
+        input[type="number"],
+        input[type="range"] {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            border-radius: 6px;
+            transition: border-color 0.2s;
+        }
+
+        select:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        input[type="number"] {
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 6px;
+            background: var(--border);
+            border: none;
+            padding: 0;
+            border-radius: 3px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+        }
+
+        /* Preset buttons */
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .preset-btn {
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .preset-btn:active {
+            transform: scale(0.95);
+            background: var(--border);
+        }
+
+        .preset-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--bg-dark);
+        }
+
+        /* Toggle switches */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 28px;
+            background: var(--border);
+            border-radius: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: var(--primary);
+        }
+
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 22px;
+            height: 22px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active::before {
+            transform: translateX(22px);
+        }
+
+        /* Quick action buttons */
+        #quick-actions {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 10;
+        }
+
+        .action-btn {
+            width: 54px;
+            height: 54px;
+            background: rgba(21, 21, 21, 0.9);
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .action-btn:active {
+            transform: scale(0.9);
+            background: var(--border);
+        }
+
+        .action-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .action-btn svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--text-primary);
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .action-btn.active svg {
+            stroke: var(--bg-dark);
+        }
+
+        /* Time slider for sun position */
+        .time-display {
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent-yellow);
+            margin-bottom: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Compass overlay */
+        #compass {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            width: 80px;
+            height: 80px;
+            background: rgba(21, 21, 21, 0.9);
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .compass-needle {
+            position: absolute;
+            width: 2px;
+            height: 30px;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--text-secondary) 100%);
+            transform-origin: bottom center;
+            transition: transform 0.3s ease-out;
+        }
+
+        .compass-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* Loading state */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Sensor info badge */
+        .sensor-badge {
+            display: inline-block;
+            background: var(--bg-dark);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-left: 8px;
+        }
+
+        /* Scrollbar styling */
+        #control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #control-panel::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+
+        #control-panel::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        #control-panel::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        /* Aspect ratio selector */
+        .aspect-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .aspect-btn {
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .aspect-btn:active {
+            transform: scale(0.95);
+        }
+
+        .aspect-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--bg-dark);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 8px;">画面をタップしてください</div>
+        <div style="color: var(--text-secondary); font-size: 10px;">カメラへのアクセスを許可します</div>
+    </div>
+
+    <div id="camera-container">
+        <video id="camera-feed" autoplay playsinline></video>
+        
+        <canvas id="fov-overlay"></canvas>
+        
+        <div id="sun-indicator"></div>
+        
+        <div id="compass">
+            <div class="compass-needle"></div>
+            <div class="compass-text">N</div>
+        </div>
+
+        <div id="hud-top">
+            <div class="info-row">
+                <div class="info-item">
+                    <span class="info-large" id="focal-length-display">50</span>
+                    <span class="info-unit">mm</span>
+                    <span class="sensor-badge" id="sensor-display">FF</span>
+                </div>
+                <div class="info-item">
+                    FOV: <span class="info-value" id="fov-display">46.8°</span>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-item">
+                    方角: <span class="info-value" id="heading-display">---°</span>
+                </div>
+                <div class="info-item">
+                    太陽: <span class="info-value" id="sun-position-display">---°</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="quick-actions">
+            <div class="action-btn" id="grid-toggle" title="グリッド表示">
+                <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                </svg>
+            </div>
+            <div class="action-btn" id="save-btn" title="保存">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                </svg>
+            </div>
+        </div>
+
+        <div id="control-panel">
+            <div class="panel-handle" id="panel-toggle"></div>
+            
+            <div class="control-section">
+                <div class="section-title">センサーサイズ</div>
+                <div class="input-group">
+                    <select id="sensor-size">
+                        <option value="full-frame">フルサイズ (36×24mm)</option>
+                        <option value="aps-c-canon">APS-C Canon (22.3×14.9mm)</option>
+                        <option value="aps-c-nikon">APS-C Nikon/Sony (23.5×15.6mm)</option>
+                        <option value="aps-c-fuji">APS-C Fujifilm (23.6×15.6mm)</option>
+                        <option value="micro-43">マイクロフォーサーズ (17.3×13mm)</option>
+                        <option value="medium-format">中判 (43.8×32.9mm)</option>
+                        <option value="1-inch">1インチ (13.2×8.8mm)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">焦点距離</div>
+                <div class="input-group">
+                    <label>数値入力 (mm)</label>
+                    <input type="number" id="focal-length" min="8" max="600" value="50" step="1">
+                </div>
+                <div class="preset-grid">
+                    <button class="preset-btn" data-focal="14">14mm</button>
+                    <button class="preset-btn" data-focal="24">24mm</button>
+                    <button class="preset-btn" data-focal="35">35mm</button>
+                    <button class="preset-btn" data-focal="50">50mm</button>
+                    <button class="preset-btn" data-focal="85">85mm</button>
+                    <button class="preset-btn" data-focal="135">135mm</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">メーカープリセット</div>
+                <div class="input-group">
+                    <select id="lens-preset">
+                        <option value="">プリセットを選択...</option>
+                        <optgroup label="Canon RF">
+                            <option value="15-35">RF15-35mm F2.8L</option>
+                            <option value="24-70">RF24-70mm F2.8L</option>
+                            <option value="70-200">RF70-200mm F2.8L</option>
+                            <option value="50-1.2">RF50mm F1.2L</option>
+                            <option value="85-1.2">RF85mm F1.2L</option>
+                        </optgroup>
+                        <optgroup label="Nikon Z">
+                            <option value="14-30">Z14-30mm F4</option>
+                            <option value="24-70z">Z24-70mm F2.8</option>
+                            <option value="70-200z">Z70-200mm F2.8</option>
+                            <option value="50-1.8z">Z50mm F1.8</option>
+                            <option value="85-1.8z">Z85mm F1.8</option>
+                        </optgroup>
+                        <optgroup label="Sony E">
+                            <option value="16-35gm">FE16-35mm F2.8 GM</option>
+                            <option value="24-70gm">FE24-70mm F2.8 GM</option>
+                            <option value="70-200gm">FE70-200mm F2.8 GM</option>
+                            <option value="50-1.4gm">FE50mm F1.4 GM</option>
+                            <option value="85-1.4gm">FE85mm F1.4 GM</option>
+                        </optgroup>
+                        <optgroup label="Fujifilm X">
+                            <option value="16-55">XF16-55mm F2.8</option>
+                            <option value="50-140">XF50-140mm F2.8</option>
+                            <option value="23-1.4">XF23mm F1.4</option>
+                            <option value="56-1.2">XF56mm F1.2</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">アスペクト比</div>
+                <div class="aspect-grid">
+                    <button class="aspect-btn active" data-aspect="3:2">3:2</button>
+                    <button class="aspect-btn" data-aspect="16:9">16:9</button>
+                    <button class="aspect-btn" data-aspect="4:3">4:3</button>
+                    <button class="aspect-btn" data-aspect="1:1">1:1</button>
+                    <button class="aspect-btn" data-aspect="4:5">4:5</button>
+                    <button class="aspect-btn" data-aspect="9:16">9:16</button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="section-title">太陽位置シミュレーション</div>
+                <div class="input-group">
+                    <div class="time-display" id="time-display">12:00</div>
+                    <input type="range" id="time-slider" min="0" max="1440" value="720" step="15">
+                </div>
+                <div class="toggle-row">
+                    <label style="margin: 0;">太陽表示</label>
+                    <div class="toggle-switch active" id="sun-toggle"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        const state = {
+            cameraStream: null,
+            sensorSize: { width: 36, height: 24 },
+            focalLength: 50,
+            aspectRatio: { w: 3, h: 2 },
+            showGrid: false,
+            showSun: true,
+            currentTime: 12 * 60, // minutes from midnight
+            deviceOrientation: { alpha: 0, beta: 0, gamma: 0 },
+            heading: 0,
+            latitude: 35.6762, // Default to Tokyo
+            longitude: 139.6503,
+        };
+
+        // Sensor size configurations (width x height in mm)
+        const sensorSizes = {
+            'full-frame': { width: 36, height: 24, name: 'FF' },
+            'aps-c-canon': { width: 22.3, height: 14.9, name: 'APS-C' },
+            'aps-c-nikon': { width: 23.5, height: 15.6, name: 'APS-C' },
+            'aps-c-fuji': { width: 23.6, height: 15.6, name: 'APS-C' },
+            'micro-43': { width: 17.3, height: 13, name: 'M4/3' },
+            'medium-format': { width: 43.8, height: 32.9, name: 'MF' },
+            '1-inch': { width: 13.2, height: 8.8, name: '1"' },
+        };
+
+        // DOM Elements
+        const cameraFeed = document.getElementById('camera-feed');
+        const fovOverlay = document.getElementById('fov-overlay');
+        const ctx = fovOverlay.getContext('2d');
+        const controlPanel = document.getElementById('control-panel');
+        const loading = document.getElementById('loading');
+        const sunIndicator = document.getElementById('sun-indicator');
+        const compass = document.getElementById('compass');
+        const compassNeedle = compass.querySelector('.compass-needle');
+
+        // Initialize camera
+        async function initCamera() {
+            try {
+                // Check if mediaDevices is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('このブラウザはカメラAPIに対応していません');
+                }
+
+                // Try simpler constraints first for iOS compatibility
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment'
+                        }
+                    });
+                } catch (e) {
+                    // Fallback: try without facingMode
+                    console.log('Trying fallback camera constraints');
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true
+                    });
+                }
+                
+                cameraFeed.srcObject = stream;
+                state.cameraStream = stream;
+                
+                // Set up play event
+                cameraFeed.onloadedmetadata = () => {
+                    cameraFeed.play().then(() => {
+                        loading.style.display = 'none';
+                        resizeCanvas();
+                        updateFOV();
+                    }).catch(err => {
+                        console.error('Video play error:', err);
+                        loading.innerHTML = '<div style="color: var(--primary);">カメラの再生に失敗しました<br><small>画面をタップしてください</small></div>';
+                        loading.style.cursor = 'pointer';
+                        loading.onclick = () => {
+                            cameraFeed.play();
+                            loading.style.display = 'none';
+                            resizeCanvas();
+                            updateFOV();
+                        };
+                    });
+                };
+
+                // Timeout fallback
+                setTimeout(() => {
+                    if (loading.style.display !== 'none') {
+                        loading.innerHTML = `
+                            <div style="color: var(--primary); padding: 20px; text-align: center;">
+                                <div style="margin-bottom: 16px;">カメラの起動に時間がかかっています</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">
+                                    ✓ Safariを使用していますか？<br>
+                                    ✓ 設定でカメラを許可しましたか？<br>
+                                    ✓ 他のアプリでカメラを使用中ではありませんか？
+                                </div>
+                                <button onclick="location.reload()" style="
+                                    margin-top: 16px;
+                                    padding: 12px 24px;
+                                    background: var(--primary);
+                                    color: white;
+                                    border: none;
+                                    border-radius: 6px;
+                                    font-family: inherit;
+                                    font-size: 14px;
+                                    cursor: pointer;
+                                ">再読み込み</button>
+                            </div>
+                        `;
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                loading.innerHTML = `
+                    <div style="color: var(--primary); padding: 20px; text-align: center;">
+                        <div style="margin-bottom: 12px;">カメラエラー</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                            ${error.message || 'カメラへのアクセスが拒否されました'}
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 16px;">
+                            <strong>対処方法：</strong><br>
+                            1. iPhoneの「設定」を開く<br>
+                            2. 「Safari」を選択<br>
+                            3. 「カメラ」を「許可」に変更<br>
+                            4. このページを再読み込み
+                        </div>
+                        <button onclick="location.reload()" style="
+                            padding: 12px 24px;
+                            background: var(--primary);
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            font-family: inherit;
+                            font-size: 14px;
+                            cursor: pointer;
+                        ">再読み込み</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Resize canvas to match video
+        function resizeCanvas() {
+            fovOverlay.width = window.innerWidth;
+            fovOverlay.height = window.innerHeight;
+            updateFOV();
+        }
+
+        // Calculate field of view
+        function calculateFOV(focalLength, sensorDimension) {
+            return 2 * Math.atan(sensorDimension / (2 * focalLength)) * (180 / Math.PI);
+        }
+
+        // Update FOV overlay
+        function updateFOV() {
+            ctx.clearRect(0, 0, fovOverlay.width, fovOverlay.height);
+            
+            const { width: sensorWidth, height: sensorHeight } = state.sensorSize;
+            const focalLength = state.focalLength;
+            
+            // Calculate FOV based on aspect ratio
+            let effectiveSensorWidth, effectiveSensorHeight;
+            const sensorAspect = sensorWidth / sensorHeight;
+            const targetAspect = state.aspectRatio.w / state.aspectRatio.h;
+            
+            if (targetAspect > sensorAspect) {
+                effectiveSensorWidth = sensorWidth;
+                effectiveSensorHeight = sensorWidth / targetAspect;
+            } else {
+                effectiveSensorHeight = sensorHeight;
+                effectiveSensorWidth = sensorHeight * targetAspect;
+            }
+            
+            const hFOV = calculateFOV(focalLength, effectiveSensorWidth);
+            const vFOV = calculateFOV(focalLength, effectiveSensorHeight);
+            
+            // iPhone camera FOV (approximate)
+            const iPhoneFOV = 63; // degrees (wide camera)
+            
+            // Calculate frame dimensions
+            const scale = Math.tan((hFOV * Math.PI / 180) / 2) / Math.tan((iPhoneFOV * Math.PI / 180) / 2);
+            const frameWidth = fovOverlay.width * scale;
+            const frameHeight = frameWidth / targetAspect;
+            
+            const x = (fovOverlay.width - frameWidth) / 2;
+            const y = (fovOverlay.height - frameHeight) / 2;
+            
+            // Draw frame
+            ctx.strokeStyle = 'rgba(255, 107, 53, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = 'rgba(255, 107, 53, 0.4)';
+            ctx.shadowBlur = 20;
+            ctx.strokeRect(x, y, frameWidth, frameHeight);
+            ctx.shadowBlur = 0;
+            
+            // Draw corners
+            const cornerSize = 40;
+            ctx.strokeStyle = 'rgba(255, 107, 53, 1)';
+            ctx.lineWidth = 3;
+            
+            // Top-left
+            ctx.beginPath();
+            ctx.moveTo(x, y + cornerSize);
+            ctx.lineTo(x, y);
+            ctx.lineTo(x + cornerSize, y);
+            ctx.stroke();
+            
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(x + frameWidth - cornerSize, y);
+            ctx.lineTo(x + frameWidth, y);
+            ctx.lineTo(x + frameWidth, y + cornerSize);
+            ctx.stroke();
+            
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(x, y + frameHeight - cornerSize);
+            ctx.lineTo(x, y + frameHeight);
+            ctx.lineTo(x + cornerSize, y + frameHeight);
+            ctx.stroke();
+            
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(x + frameWidth - cornerSize, y + frameHeight);
+            ctx.lineTo(x + frameWidth, y + frameHeight);
+            ctx.lineTo(x + frameWidth, y + frameHeight - cornerSize);
+            ctx.stroke();
+            
+            // Draw center crosshair
+            ctx.strokeStyle = 'rgba(255, 107, 53, 0.8)';
+            ctx.lineWidth = 2;
+            const centerX = fovOverlay.width / 2;
+            const centerY = fovOverlay.height / 2;
+            const crossSize = 20;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX - crossSize, centerY);
+            ctx.lineTo(centerX + crossSize, centerY);
+            ctx.moveTo(centerX, centerY - crossSize);
+            ctx.lineTo(centerX, centerY + crossSize);
+            ctx.stroke();
+            
+            // Draw grid if enabled
+            if (state.showGrid) {
+                ctx.strokeStyle = 'rgba(0, 217, 255, 0.3)';
+                ctx.lineWidth = 1;
+                
+                // Vertical lines
+                ctx.beginPath();
+                ctx.moveTo(x + frameWidth / 3, y);
+                ctx.lineTo(x + frameWidth / 3, y + frameHeight);
+                ctx.moveTo(x + (frameWidth * 2) / 3, y);
+                ctx.lineTo(x + (frameWidth * 2) / 3, y + frameHeight);
+                ctx.stroke();
+                
+                // Horizontal lines
+                ctx.beginPath();
+                ctx.moveTo(x, y + frameHeight / 3);
+                ctx.lineTo(x + frameWidth, y + frameHeight / 3);
+                ctx.moveTo(x, y + (frameHeight * 2) / 3);
+                ctx.lineTo(x + frameWidth, y + (frameHeight * 2) / 3);
+                ctx.stroke();
+            }
+            
+            // Update HUD
+            document.getElementById('focal-length-display').textContent = focalLength;
+            document.getElementById('fov-display').textContent = hFOV.toFixed(1) + '°';
+            document.getElementById('sensor-display').textContent = state.sensorSize.name;
+        }
+
+        // Calculate sun position
+        function calculateSunPosition(latitude, longitude, time) {
+            const date = new Date();
+            date.setHours(0, time, 0, 0);
+            
+            const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+            const declination = 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180);
+            
+            const hourAngle = (time / 60 - 12) * 15; // degrees
+            
+            const latRad = latitude * Math.PI / 180;
+            const decRad = declination * Math.PI / 180;
+            const haRad = hourAngle * Math.PI / 180;
+            
+            const elevation = Math.asin(
+                Math.sin(latRad) * Math.sin(decRad) +
+                Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad)
+            ) * 180 / Math.PI;
+            
+            let azimuth = Math.atan2(
+                Math.sin(haRad),
+                Math.cos(haRad) * Math.sin(latRad) - Math.tan(decRad) * Math.cos(latRad)
+            ) * 180 / Math.PI;
+            
+            azimuth = (azimuth + 360) % 360;
+            
+            return { azimuth, elevation };
+        }
+
+        // Update sun indicator position
+        function updateSunPosition() {
+            if (!state.showSun) {
+                sunIndicator.style.display = 'none';
+                return;
+            }
+            
+            sunIndicator.style.display = 'block';
+            
+            const { azimuth, elevation } = calculateSunPosition(
+                state.latitude,
+                state.longitude,
+                state.currentTime
+            );
+            
+            // Calculate position relative to device heading
+            const relativeBearing = (azimuth - state.heading + 360) % 360;
+            
+            // Map bearing to screen position (assuming 60° FOV)
+            const screenFOV = 63;
+            const angleFromCenter = relativeBearing > 180 ? relativeBearing - 360 : relativeBearing;
+            
+            if (Math.abs(angleFromCenter) < screenFOV / 2 && elevation > 0) {
+                const x = (angleFromCenter / screenFOV) * window.innerWidth + window.innerWidth / 2;
+                const y = window.innerHeight / 2 - (elevation / 45) * (window.innerHeight / 3);
+                
+                sunIndicator.style.left = x - 30 + 'px';
+                sunIndicator.style.top = y - 30 + 'px';
+                sunIndicator.style.opacity = '0.8';
+            } else {
+                sunIndicator.style.opacity = '0';
+            }
+            
+            document.getElementById('sun-position-display').textContent = azimuth.toFixed(0) + '°';
+        }
+
+        // Handle device orientation
+        function handleOrientation(event) {
+            if (event.alpha !== null) {
+                state.heading = 360 - event.alpha;
+                compassNeedle.style.transform = `rotate(${event.alpha}deg)`;
+                document.getElementById('heading-display').textContent = state.heading.toFixed(0) + '°';
+                updateSunPosition();
+            }
+        }
+
+        // Request orientation permission (iOS 13+)
+        async function requestOrientationPermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') {
+                        window.addEventListener('deviceorientation', handleOrientation);
+                    }
+                } catch (error) {
+                    console.error('Orientation permission error:', error);
+                }
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
+            }
+        }
+
+        // Get geolocation
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        state.latitude = position.coords.latitude;
+                        state.longitude = position.coords.longitude;
+                        updateSunPosition();
+                    },
+                    (error) => {
+                        console.error('Geolocation error:', error);
+                    }
+                );
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('sensor-size').addEventListener('change', (e) => {
+            const sensorData = sensorSizes[e.target.value];
+            state.sensorSize = sensorData;
+            updateFOV();
+        });
+
+        document.getElementById('focal-length').addEventListener('input', (e) => {
+            state.focalLength = parseFloat(e.target.value);
+            updateFOV();
+        });
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const focal = parseFloat(e.target.dataset.focal);
+                state.focalLength = focal;
+                document.getElementById('focal-length').value = focal;
+                updateFOV();
+            });
+        });
+
+        document.getElementById('lens-preset').addEventListener('change', (e) => {
+            const presetMap = {
+                '15-35': 24, '24-70': 35, '70-200': 100,
+                '50-1.2': 50, '85-1.2': 85,
+                '14-30': 24, '24-70z': 35, '70-200z': 100,
+                '50-1.8z': 50, '85-1.8z': 85,
+                '16-35gm': 24, '24-70gm': 35, '70-200gm': 100,
+                '50-1.4gm': 50, '85-1.4gm': 85,
+                '16-55': 35, '50-140': 85,
+                '23-1.4': 35, '56-1.2': 85
+            };
+            
+            const focal = presetMap[e.target.value];
+            if (focal) {
+                state.focalLength = focal;
+                document.getElementById('focal-length').value = focal;
+                updateFOV();
+            }
+        });
+
+        document.querySelectorAll('.aspect-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                const [w, h] = e.target.dataset.aspect.split(':').map(Number);
+                state.aspectRatio = { w, h };
+                updateFOV();
+            });
+        });
+
+        document.getElementById('grid-toggle').addEventListener('click', (e) => {
+            state.showGrid = !state.showGrid;
+            e.currentTarget.classList.toggle('active');
+            updateFOV();
+        });
+
+        document.getElementById('sun-toggle').addEventListener('click', (e) => {
+            state.showSun = !state.showSun;
+            e.currentTarget.classList.toggle('active');
+            updateSunPosition();
+        });
+
+        document.getElementById('time-slider').addEventListener('input', (e) => {
+            state.currentTime = parseFloat(e.target.value);
+            const hours = Math.floor(state.currentTime / 60);
+            const minutes = state.currentTime % 60;
+            document.getElementById('time-display').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            updateSunPosition();
+        });
+
+        document.getElementById('panel-toggle').addEventListener('click', () => {
+            controlPanel.classList.toggle('open');
+        });
+
+        document.getElementById('save-btn').addEventListener('click', () => {
+            // Create a canvas with the camera feed and overlay
+            const canvas = document.createElement('canvas');
+            canvas.width = cameraFeed.videoWidth;
+            canvas.height = cameraFeed.videoHeight;
+            const saveCtx = canvas.getContext('2d');
+            
+            // Draw video frame
+            saveCtx.drawImage(cameraFeed, 0, 0);
+            
+            // Scale and draw overlay
+            const scaleX = canvas.width / fovOverlay.width;
+            const scaleY = canvas.height / fovOverlay.height;
+            saveCtx.scale(scaleX, scaleY);
+            saveCtx.drawImage(fovOverlay, 0, 0);
+            
+            // Download
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `location-scout-${Date.now()}.jpg`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }, 'image/jpeg', 0.95);
+        });
+
+        // Initialize
+        window.addEventListener('resize', resizeCanvas);
+        
+        // For iOS, camera needs user interaction
+        let cameraStarted = false;
+        document.addEventListener('click', () => {
+            if (!cameraStarted) {
+                cameraStarted = true;
+                initCamera();
+            }
+        }, { once: true });
+        
+        // Also try to start automatically
+        initCamera();
+        requestOrientationPermission();
+        getLocation();
+        
+        // Auto-open control panel on first load
+        setTimeout(() => {
+            if (loading.style.display === 'none') {
+                controlPanel.classList.add('open');
+            }
+        }, 1500);
+    </script>
+</body>
+</html>
